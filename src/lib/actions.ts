@@ -79,34 +79,30 @@ interface CreatePhotoArgs {
 }
 
 export async function createPhoto({ author, caption, base64data, aiHint, filter }: CreatePhotoArgs) {
-    console.log('--- Starting createPhoto ---');
-    console.log('Author:', author);
-    if (!base64data.startsWith('data:image/')) {
-        console.error('Invalid image format. Base64 data does not start with "data:image/".');
+    if (!author) {
+      console.error('Error: Author is missing.');
+      return { success: false, message: 'Usuário não identificado. Faça o login novamente.' };
+    }
+    
+    if (!base64data || !base64data.startsWith('data:image/')) {
+        console.error('Invalid image format. Base64 data is missing or does not start with "data:image/".');
         return { success: false, message: 'Formato de imagem inválido.' };
     }
 
     try {
-        console.log('Step 1: Decoding Base64 data...');
         const imageBuffer = Buffer.from(base64data.split(',')[1], 'base64');
         const mimeType = base64data.match(/data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
-        console.log(`Step 1 Success: Decoded image. MimeType: ${mimeType}, Buffer length: ${imageBuffer.length}`);
-
-        const fileName = `photos/${Date.now()}-${Math.round(Math.random() * 1E9)}.jpg`;
+        
+        const fileName = `photos/${Date.now()}-${author.replace(/\s+/g, '-')}-${Math.round(Math.random() * 1E9)}.jpg`;
         const file = storage.bucket().file(fileName);
-        console.log(`Step 2: Preparing to upload to Firebase Storage. Filename: ${fileName}`);
         
         await file.save(imageBuffer, {
             metadata: { contentType: mimeType }
         });
-        console.log('Step 2 Success: File saved to Storage.');
-
-        console.log('Step 3: Making file public...');
+        
         await file.makePublic();
-        console.log('Step 3 Success: File is now public.');
 
         const publicUrl = file.publicUrl();
-        console.log(`Step 4: Got public URL: ${publicUrl}`);
         
         const newPhotoData: Omit<Photo, 'id'> = {
             author,
@@ -119,24 +115,19 @@ export async function createPhoto({ author, caption, base64data, aiHint, filter 
             createdAt: new Date().toISOString(),
         };
 
-        console.log('Step 5: Preparing to add document to Firestore with data:', newPhotoData);
         const docRef = await db.collection(PHOTOS_COLLECTION).add(newPhotoData);
-        console.log(`Step 5 Success: Document added to Firestore with ID: ${docRef.id}`);
-
-        console.log('Step 6: Revalidating paths...');
+        
         revalidatePath('/feed');
         revalidatePath('/admin/dashboard');
-        console.log('Step 6 Success: Paths revalidated.');
         
         const newPhoto: Photo = {
             id: docRef.id,
             ...newPhotoData
         };
 
-        console.log('--- createPhoto finished successfully! ---');
         return { success: true, photo: newPhoto };
     } catch (error) {
-        console.error("--- ERROR in createPhoto ---", error);
+        console.error("[CREATE_PHOTO_ERROR]", error);
         return { success: false, message: "Falha no upload da imagem." };
     }
 }
@@ -144,10 +135,8 @@ export async function createPhoto({ author, caption, base64data, aiHint, filter 
 
 export async function deletePhoto(photoId: string, imageUrl: string) {
   try {
-    // 1. Delete from Firestore
     await db.collection(PHOTOS_COLLECTION).doc(photoId).delete();
 
-    // 2. Delete from Storage
     const decodedUrl = decodeURIComponent(imageUrl);
     const filePath = decodedUrl.split('/o/')[1].split('?')[0];
     await storage.bucket().file(filePath).delete();
@@ -158,7 +147,6 @@ export async function deletePhoto(photoId: string, imageUrl: string) {
   } catch(error) {
     console.error("Erro ao excluir foto:", error);
     if (error instanceof Error && error.message.includes('does not exist')) {
-        // If file is already gone from storage, but doc exists, still try to delete doc
         try {
             await db.collection(PHOTOS_COLLECTION).doc(photoId).delete();
             revalidatePath('/feed');
