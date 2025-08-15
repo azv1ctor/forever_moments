@@ -13,6 +13,7 @@ import type { Photo, Comment as CommentType } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 export default function PhotoCard({ photo: initialPhoto }: { photo: Photo }) {
   const [photo, setPhoto] = useState(initialPhoto);
@@ -89,22 +90,21 @@ export default function PhotoCard({ photo: initialPhoto }: { photo: Photo }) {
                 src={photo.imageUrl}
                 alt={photo.caption || 'Foto do casamento'}
                 fill
-                className="object-cover"
+                className={cn('object-cover', photo.filter)}
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                 data-ai-hint={photo.aiHint}
               />
             </div>
           </CardContent>
         </DialogTrigger>
-        <DialogContent className="p-0 max-w-3xl">
-          <div className="aspect-[4/5] relative w-full">
+        <DialogContent className="p-0 max-w-3xl bg-transparent border-0">
             <Image
               src={photo.imageUrl}
               alt={photo.caption || 'Foto do casamento'}
-              fill
-              className="object-contain"
+              width={1024}
+              height={1280}
+              className={cn('object-contain w-full h-auto', photo.filter)}
             />
-          </div>
         </DialogContent>
       </Dialog>
       
@@ -130,6 +130,9 @@ export default function PhotoCard({ photo: initialPhoto }: { photo: Photo }) {
                            {comment.text}
                         </div>
                     ))}
+                    {photo.comments.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center">Seja o primeiro a comentar!</p>
+                    )}
                 </div>
                 <form onSubmit={handleAddComment} className="flex gap-2">
                     <Input 
@@ -149,3 +152,5 @@ export default function PhotoCard({ photo: initialPhoto }: { photo: Photo }) {
     </Card>
   );
 }
+
+    

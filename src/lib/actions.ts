@@ -39,13 +39,14 @@ export async function addComment(photoId: string, author: string, commentText: s
   return { success: false, message: 'Foto não encontrada' };
 }
 
-export async function createPhoto(author: string, caption: string, imageUrl: string, aiHint: string) {
+export async function createPhoto(author: string, caption: string, imageUrl: string, aiHint: string, filter?: string) {
     const newPhoto: Photo = {
         id: `${Date.now()}`,
         author,
         caption,
         imageUrl,
         aiHint,
+        filter: filter || 'filter-none',
         likes: 0,
         comments: [],
         createdAt: new Date().toISOString(),
@@ -76,3 +77,5 @@ export async function suggestCaption(formData: FormData) {
     return { success: false, message: 'Não foi possível sugerir uma legenda.' };
   }
 }
+
+    

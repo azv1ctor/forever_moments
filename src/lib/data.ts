@@ -14,6 +14,7 @@ export const photos: Photo[] = [
       { id: 'c2', author: 'Cousin Sarah', text: 'What a magical day!', createdAt: new Date(Date.now() - 1000 * 60 * 2).toISOString() },
     ],
     createdAt: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+    filter: 'filter-saturate-150'
   },
   {
     id: '2',
@@ -24,6 +25,7 @@ export const photos: Photo[] = [
     likes: 22,
     comments: [],
     createdAt: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
+    filter: 'filter-none'
   },
   {
     id: '3',
@@ -34,6 +36,7 @@ export const photos: Photo[] = [
     likes: 31,
     comments: [],
     createdAt: new Date(Date.now() - 1000 * 60 * 3).toISOString(),
+    filter: 'filter-grayscale'
   },
     {
     id: '4',
@@ -44,5 +47,8 @@ export const photos: Photo[] = [
     likes: 45,
     comments: [],
     createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+    filter: 'filter-sepia'
   },
 ];
+
+    

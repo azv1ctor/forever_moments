@@ -14,4 +14,7 @@ export interface Photo {
   comments: Comment[];
   createdAt: string;
   aiHint: string;
+  filter?: string;
 }
+
+    

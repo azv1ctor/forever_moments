@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
@@ -12,8 +13,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import Image from 'next/image';
 import { createPhoto, suggestCaption } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, Upload, Camera } from 'lucide-react';
+import { Sparkles, Upload, Camera, SlidersHorizontal } from 'lucide-react';
 import { convertHeicToJpeg } from '@/lib/heic-converter';
+import { cn } from '@/lib/utils';
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 
 const uploadSchema = z.object({
   caption: z.string().max(280, 'A legenda é muito longa.').optional(),
@@ -22,6 +25,15 @@ const uploadSchema = z.object({
     .refine((file) => file?.size <= 10000000, `O tamanho máximo do arquivo é 10MB.`),
 });
 
+const filters = [
+    { name: 'Normal', className: 'filter-none' },
+    { name: 'Sépia', className: 'filter-sepia' },
+    { name: 'P&B', className: 'filter-grayscale' },
+    { name: 'Contraste', className: 'filter-contrast-125' },
+    { name: 'Brilho', className: 'filter-brightness-110' },
+    { name: 'Saturado', className: 'filter-saturate-150' },
+];
+
 export default function UploadPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -29,6 +41,7 @@ export default function UploadPage() {
   const [isSuggesting, startSuggestionTransition] = useTransition();
   const [preview, setPreview] = useState<string | null>(null);
   const [guestName, setGuestName] = useState<string>('');
+  const [selectedFilter, setSelectedFilter] = useState('filter-none');
   
   const form = useForm<z.infer<typeof uploadSchema>>({
     resolver: zodResolver(uploadSchema),
@@ -87,7 +100,7 @@ export default function UploadPage() {
             reader.readAsDataURL(file);
             reader.onloadend = async () => {
                 const base64data = reader.result as string;
-                const result = await createPhoto(guestName, values.caption || '', base64data, "user uploaded");
+                const result = await createPhoto(guestName, values.caption || '', base64data, "user uploaded", selectedFilter);
 
                 if (result.success) {
                     toast({ title: 'Foto enviada!', description: 'Obrigado por compartilhar seu momento.' });
@@ -120,7 +133,11 @@ export default function UploadPage() {
                   <FormItem>
                     <FormLabel>Foto</FormLabel>
                      <div className="relative flex justify-center items-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted">
-                        <Camera className="h-12 w-12 text-muted-foreground" />
+                        {preview ? (
+                           <Image src={preview} alt="Pré-visualização" fill className={cn('object-contain rounded-lg', selectedFilter)} />
+                        ) : (
+                           <Camera className="h-12 w-12 text-muted-foreground" />
+                        )}
                         <input
                             type="file"
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -134,9 +151,37 @@ export default function UploadPage() {
               />
 
               {preview && (
-                <div className="w-full aspect-video relative rounded-lg overflow-hidden border">
-                    <Image src={preview} alt="Pré-visualização da imagem" fill className="object-contain" />
-                </div>
+                 <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <SlidersHorizontal className="h-4 w-4" />
+                        <span>Filtros</span>
+                    </div>
+                    <Carousel opts={{ align: "start", slidesToScroll: 'auto' }} className="w-full">
+                        <CarouselContent>
+                            {filters.map((filter) => (
+                                <CarouselItem key={filter.name} className="basis-1/4 sm:basis-1/5">
+                                    <div className="p-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedFilter(filter.className)}
+                                            className={cn(
+                                                'w-full flex flex-col items-center gap-1.5 rounded-lg p-2 border-2',
+                                                selectedFilter === filter.className ? 'border-primary' : 'border-transparent'
+                                            )}
+                                        >
+                                            <div className="w-16 h-16 rounded-md overflow-hidden relative">
+                                                <Image src={preview} alt={filter.name} fill className={cn('object-cover', filter.className)} />
+                                            </div>
+                                            <span className="text-xs font-medium">{filter.name}</span>
+                                        </button>
+                                    </div>
+                                </CarouselItem>
+                            ))}
+                        </CarouselContent>
+                        <CarouselPrevious className="hidden sm:flex" />
+                        <CarouselNext className="hidden sm:flex" />
+                    </Carousel>
+                 </div>
               )}
 
               <FormField
@@ -177,3 +222,5 @@ export default function UploadPage() {
     </div>
   );
 }
+
+    

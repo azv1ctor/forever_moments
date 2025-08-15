@@ -1,5 +1,7 @@
 import type {Config} from 'tailwindcss';
 
+const plugin = require('tailwindcss/plugin')
+
 export default {
   darkMode: ['class'],
   content: [
@@ -95,5 +97,19 @@ export default {
       },
     },
   },
-  plugins: [require('tailwindcss-animate'), require('@tailwindcss/aspect-ratio')],
+  plugins: [
+    require('tailwindcss-animate'), 
+    require('@tailwindcss/aspect-ratio'),
+    plugin(function({ addUtilities }) {
+      addUtilities({
+        '.filter-sepia': { filter: 'sepia(1)' },
+        '.filter-grayscale': { filter: 'grayscale(1)' },
+        '.filter-contrast-125': { filter: 'contrast(1.25)' },
+        '.filter-brightness-110': { filter: 'brightness(1.1)' },
+        '.filter-saturate-150': { filter: 'saturate(1.5)' },
+      })
+    })
+  ],
 } satisfies Config;
+
+    
