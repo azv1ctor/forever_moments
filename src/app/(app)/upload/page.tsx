@@ -6,24 +6,20 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import Image from 'next/image';
 import { createPhoto, suggestCaption } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, Upload } from 'lucide-react';
+import { Sparkles, Upload, Camera } from 'lucide-react';
+import { convertHeicToJpeg } from '@/lib/heic-converter';
 
 const uploadSchema = z.object({
   caption: z.string().max(280, 'A legenda é muito longa.').optional(),
   photo: z.any()
-    .refine((files) => files?.length == 1, 'A imagem é obrigatória.')
-    .refine((files) => files?.[0]?.size <= 5000000, `O tamanho máximo do arquivo é 5MB.`)
-    .refine(
-      (files) => ["image/jpeg", "image/png", "image/webp"].includes(files?.[0]?.type),
-      "São aceitos arquivos .jpg, .png e .webp."
-    ),
+    .refine((file) => file, 'A imagem é obrigatória.')
+    .refine((file) => file?.size <= 10000000, `O tamanho máximo do arquivo é 10MB.`),
 });
 
 export default function UploadPage() {
@@ -43,9 +39,10 @@ export default function UploadPage() {
     setGuestName(localStorage.getItem('guestName') || '');
   }, []);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      form.setValue('photo', file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreview(reader.result as string);
@@ -53,6 +50,7 @@ export default function UploadPage() {
       reader.readAsDataURL(file);
     } else {
         setPreview(null);
+        form.setValue('photo', null);
     }
   };
 
@@ -77,15 +75,31 @@ export default function UploadPage() {
 
   const onSubmit = (values: z.infer<typeof uploadSchema>) => {
     startTransition(async () => {
-      if (!preview) return;
-      const result = await createPhoto(guestName, values.caption || '', preview, "user uploaded");
+        let file = values.photo;
+        if (!file) return;
 
-      if (result.success) {
-        toast({ title: 'Foto enviada!', description: 'Obrigado por compartilhar seu momento.' });
-        router.push('/feed');
-      } else {
-        toast({ variant: 'destructive', title: 'Falha no envio', description: 'Por favor, tente novamente.' });
-      }
+        try {
+            if (file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic')) {
+              file = await convertHeicToJpeg(file);
+            }
+    
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onloadend = async () => {
+                const base64data = reader.result as string;
+                const result = await createPhoto(guestName, values.caption || '', base64data, "user uploaded");
+
+                if (result.success) {
+                    toast({ title: 'Foto enviada!', description: 'Obrigado por compartilhar seu momento.' });
+                    router.push('/feed');
+                } else {
+                    toast({ variant: 'destructive', title: 'Falha no envio', description: 'Por favor, tente novamente.' });
+                }
+            }
+        } catch (error) {
+            console.error("Error processing file:", error);
+            toast({ variant: 'destructive', title: 'Erro no processamento do arquivo', description: 'Não foi possível processar sua imagem. Tente um formato diferente.' });
+        }
     });
   };
   
@@ -102,15 +116,18 @@ export default function UploadPage() {
               <FormField
                 control={form.control}
                 name="photo"
-                render={({ field }) => (
+                render={() => (
                   <FormItem>
                     <FormLabel>Foto</FormLabel>
-                    <FormControl>
-                        <Input type="file" accept="image/png, image/jpeg, image/webp" onChange={(e) => {
-                            field.onChange(e.target.files);
-                            handleFileChange(e);
-                        }} />
-                    </FormControl>
+                     <div className="relative flex justify-center items-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted">
+                        <Camera className="h-12 w-12 text-muted-foreground" />
+                        <input
+                            type="file"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            accept="image/png, image/jpeg, image/webp, image/heic, image/heif"
+                            onChange={handleFileChange}
+                        />
+                     </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -149,7 +166,7 @@ export default function UploadPage() {
                 )}
               />
 
-              <Button type="submit" className="w-full h-12 text-lg" disabled={isPending || !guestName}>
+              <Button type="submit" className="w-full h-12 text-lg" disabled={isPending || !guestName || !preview}>
                 {isPending ? 'Enviando...' : 'Compartilhar Minha Foto'}
                 <Upload className="ml-2 h-4 w-4" />
               </Button>

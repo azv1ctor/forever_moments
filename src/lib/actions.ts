@@ -11,10 +11,11 @@ export async function getPhotos() {
   return photos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-export async function likePhoto(photoId: string) {
+export async function likePhoto(photoId: string, like: boolean) {
   const photo = photos.find((p) => p.id === photoId);
   if (photo) {
-    photo.likes += 1;
+    photo.likes += like ? 1 : -1;
+    if (photo.likes < 0) photo.likes = 0;
     revalidatePath('/feed');
     return { success: true };
   }
@@ -32,6 +33,7 @@ export async function addComment(photoId: string, author: string, commentText: s
     };
     photo.comments.push(newComment);
     revalidatePath('/feed');
+    // For optimistic update
     return { success: true, comment: newComment };
   }
   return { success: false, message: 'Foto não encontrada' };
