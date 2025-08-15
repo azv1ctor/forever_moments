@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import Image from 'next/image';
-import { createPhoto, suggestCaption } from '@/lib/actions';
+import { createPhoto, suggestCaptionAction } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles, Upload, Camera, SlidersHorizontal } from 'lucide-react';
 import { convertHeicToJpeg } from '@/lib/heic-converter';
@@ -76,7 +76,7 @@ export default function UploadPage() {
     startSuggestionTransition(async () => {
       const formData = new FormData();
       formData.append('photoDataUri', preview);
-      const result = await suggestCaption(formData);
+      const result = await suggestCaptionAction(formData);
       if (result.success && result.caption) {
         form.setValue('caption', result.caption);
         toast({ title: 'Sugestão de legenda aplicada!' });

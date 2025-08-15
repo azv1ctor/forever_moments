@@ -172,7 +172,7 @@ export async function deletePhoto(photoId: string, imageUrl: string) {
 const SuggestCaptionSchema = z.object({
   photoDataUri: z.string(),
 });
-export async function suggestCaption(formData: FormData) {
+export async function suggestCaptionAction(formData: FormData) {
   try {
     const { photoDataUri } = SuggestCaptionSchema.parse({
       photoDataUri: formData.get('photoDataUri'),
@@ -183,7 +183,7 @@ export async function suggestCaption(formData: FormData) {
       topicKeywords: 'casamento, celebração, alegria, amor, matrimônio, festa',
     });
 
-    return { success: true, caption: result.caption };
+    return { success: true, caption: result.suggestedCaption };
   } catch (error) {
     console.error(error);
     return { success: false, message: 'Não foi possível sugerir uma legenda.' };
