@@ -82,16 +82,17 @@ export async function createPhoto(author: string, caption: string, base64data: s
         
         const fileName = `photos/${Date.now()}-${Math.round(Math.random() * 1E9)}.jpg`;
         const file = storage.bucket().file(fileName);
+        
         await file.save(imageBuffer, {
             metadata: { contentType: mimeType }
         });
 
-        const [publicUrl] = await file.getSignedUrl({
-            action: 'read',
-            expires: '01-01-2500'
-        });
+        // Tornar o arquivo público para obter uma URL permanente e simples
+        await file.makePublic();
+
+        const publicUrl = file.publicUrl();
         
-        const newPhoto: Omit<Photo, 'id'> = {
+        const newPhotoData: Omit<Photo, 'id'> = {
             author,
             caption,
             imageUrl: publicUrl,
@@ -102,16 +103,23 @@ export async function createPhoto(author: string, caption: string, base64data: s
             createdAt: new Date().toISOString(),
         };
 
-        const docRef = await db.collection(PHOTOS_COLLECTION).add(newPhoto);
+        const docRef = await db.collection(PHOTOS_COLLECTION).add(newPhotoData);
 
         revalidatePath('/feed');
         revalidatePath('/admin/dashboard');
-        return { success: true, photo: { id: docRef.id, ...newPhoto } };
+        
+        const newPhoto: Photo = {
+            id: docRef.id,
+            ...newPhotoData
+        };
+
+        return { success: true, photo: newPhoto };
     } catch (error) {
         console.error("Erro ao criar foto:", error);
         return { success: false, message: "Falha no upload da imagem." };
     }
 }
+
 
 export async function deletePhoto(photoId: string, imageUrl: string) {
   try {
