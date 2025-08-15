@@ -100,7 +100,13 @@ export default function UploadPage() {
             reader.readAsDataURL(file);
             reader.onloadend = async () => {
                 const base64data = reader.result as string;
-                const result = await createPhoto(guestName, values.caption || '', base64data, "user uploaded", selectedFilter);
+                const result = await createPhoto({
+                    author: guestName,
+                    caption: values.caption || '',
+                    base64data: base64data,
+                    aiHint: "user uploaded",
+                    filter: selectedFilter
+                });
 
                 if (result.success) {
                     toast({ title: 'Foto enviada!', description: 'Obrigado por compartilhar seu momento.' });

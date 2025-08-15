@@ -3,9 +3,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { db, storage } from './firebase-admin'; // Importa a configuração do Firebase
+import { db, storage } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { Photo, Comment } from './types'; // Supondo que você tenha esses tipos
+import type { Photo, Comment } from './types';
 import { suggestPhotoCaption as suggestPhotoCaptionFlow } from '@/ai/flows/suggest-photo-caption';
 
 const PHOTOS_COLLECTION = 'photos';
@@ -21,7 +21,6 @@ export async function getPhotos(): Promise<Photo[]> {
       return { 
         id: doc.id, 
         ...data,
-        // Garante que comments seja sempre um array
         comments: data.comments || [],
        } as Photo
     });
@@ -71,7 +70,15 @@ export async function addComment(photoId: string, author: string, commentText: s
   }
 }
 
-export async function createPhoto(author: string, caption: string, base64data: string, aiHint: string, filter?: string) {
+interface CreatePhotoArgs {
+    author: string;
+    caption: string;
+    base64data: string;
+    aiHint: string;
+    filter?: string;
+}
+
+export async function createPhoto({ author, caption, base64data, aiHint, filter }: CreatePhotoArgs) {
     console.log('--- Starting createPhoto ---');
     console.log('Author:', author);
     if (!base64data.startsWith('data:image/')) {
@@ -129,8 +136,7 @@ export async function createPhoto(author: string, caption: string, base64data: s
         console.log('--- createPhoto finished successfully! ---');
         return { success: true, photo: newPhoto };
     } catch (error) {
-        console.error("--- ERROR in createPhoto ---");
-        console.error(error);
+        console.error("--- ERROR in createPhoto ---", error);
         return { success: false, message: "Falha no upload da imagem." };
     }
 }
