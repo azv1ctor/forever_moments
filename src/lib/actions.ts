@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { db } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Photo, Comment } from './types';
-import { suggestPhotoCaption as suggestCaptionAction } from '@/ai/flows/suggest-photo-caption';
+import { suggestPhotoCaption } from '@/ai/flows/suggest-photo-caption';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -167,15 +167,15 @@ export async function suggestCaptionAction(formData: FormData) {
       photoDataUri: formData.get('photoDataUri'),
     });
 
-    const result = await suggestCaptionAction({
+    const result = await suggestPhotoCaption({
       photoDataUri,
       topicKeywords: 'casamento, celebração, alegria, amor, matrimônio, festa',
     });
 
     return { success: true, caption: result.suggestedCaption };
   } catch (error) {
-    console.error(error);
-    const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
+    console.error('[SUGGEST_CAPTION_ERROR]', error);
+    const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido';
     return { success: false, message: `Não foi possível sugerir uma legenda: ${errorMessage}` };
   }
 }
