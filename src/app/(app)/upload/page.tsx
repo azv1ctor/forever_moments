@@ -81,7 +81,7 @@ export default function UploadPage() {
         form.setValue('caption', result.caption);
         toast({ title: 'Sugestão de legenda aplicada!' });
       } else {
-        toast({ variant: 'destructive', title: 'Erro', description: result.message });
+        toast({ variant: 'destructive', title: 'Falha na Sugestão', description: result.message });
       }
     });
   };
@@ -112,7 +112,8 @@ export default function UploadPage() {
         }
     } catch (error) {
         console.error("Error processing file:", error);
-        toast({ variant: 'destructive', title: 'Erro no processamento do arquivo', description: 'Não foi possível processar sua imagem. Tente um formato diferente.' });
+        const errorMessage = error instanceof Error ? error.message : 'Não foi possível processar sua imagem. Tente um formato diferente.';
+        toast({ variant: 'destructive', title: 'Erro no processamento do arquivo', description: errorMessage });
     }
   };
 
@@ -129,7 +130,8 @@ export default function UploadPage() {
             processAndSubmit(convertedFile, values);
           } catch (error) {
              console.error("Error converting HEIC:", error);
-             toast({ variant: 'destructive', title: 'Erro na conversão', description: 'Não foi possível converter a imagem HEIC. Tente outro formato.' });
+             const errorMessage = error instanceof Error ? error.message : 'Não foi possível converter a imagem HEIC. Tente outro formato.';
+             toast({ variant: 'destructive', title: 'Erro na conversão', description: errorMessage });
           }
         } else {
             processAndSubmit(file, values);

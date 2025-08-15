@@ -128,7 +128,8 @@ export async function createPhoto({ author, caption, base64data, aiHint, filter 
         return { success: true, photo: newPhoto };
     } catch (error) {
         console.error("[CREATE_PHOTO_ERROR]", error);
-        return { success: false, message: "Falha no upload da imagem." };
+        const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
+        return { success: false, message: `Falha no upload da imagem: ${errorMessage}` };
     }
 }
 
@@ -186,6 +187,7 @@ export async function suggestCaptionAction(formData: FormData) {
     return { success: true, caption: result.suggestedCaption };
   } catch (error) {
     console.error(error);
-    return { success: false, message: 'Não foi possível sugerir uma legenda.' };
+    const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
+    return { success: false, message: `Não foi possível sugerir uma legenda: ${errorMessage}` };
   }
 }
