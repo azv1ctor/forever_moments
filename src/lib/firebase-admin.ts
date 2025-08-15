@@ -12,7 +12,6 @@ if (!admin.apps.length) {
     
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
     });
   } catch (error: any) {
     console.error('Firebase admin initialization error', error.stack);
@@ -20,4 +19,4 @@ if (!admin.apps.length) {
 }
 
 export const db = admin.firestore();
-export const storage = admin.storage();
+export const storage = null; // Storage is not used in local mode

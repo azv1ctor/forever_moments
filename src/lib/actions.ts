@@ -3,10 +3,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { db, storage } from './firebase-admin';
+import { db } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Photo, Comment } from './types';
-import { suggestPhotoCaption as suggestPhotoCaptionFlow } from '@/ai/flows/suggest-photo-caption';
+import { suggestPhotoCaption as suggestCaptionAction } from '@/ai/flows/suggest-photo-caption';
+import fs from 'fs/promises';
+import path from 'path';
 
 const PHOTOS_COLLECTION = 'photos';
 
@@ -80,29 +82,28 @@ interface CreatePhotoArgs {
 
 export async function createPhoto({ author, caption, base64data, aiHint, filter }: CreatePhotoArgs) {
     if (!author) {
-      console.error('Error: Author is missing.');
       return { success: false, message: 'Usuário não identificado. Faça o login novamente.' };
     }
     
     if (!base64data || !base64data.startsWith('data:image/')) {
-        console.error('Invalid image format. Base64 data is missing or does not start with "data:image/".');
         return { success: false, message: 'Formato de imagem inválido.' };
     }
 
     try {
         const imageBuffer = Buffer.from(base64data.split(',')[1], 'base64');
         const mimeType = base64data.match(/data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
-        
-        const fileName = `photos/${Date.now()}-${author.replace(/\s+/g, '-')}-${Math.round(Math.random() * 1E9)}.jpg`;
-        const file = storage.bucket().file(fileName);
-        
-        await file.save(imageBuffer, {
-            metadata: { contentType: mimeType }
-        });
-        
-        await file.makePublic();
+        const extension = mimeType.split('/')[1];
 
-        const publicUrl = file.publicUrl();
+        const fileName = `photos/${Date.now()}-${author.replace(/\s+/g, '-')}-${Math.round(Math.random() * 1E9)}.${extension}`;
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+        
+        // Create upload directory if it doesn't exist
+        await fs.mkdir(uploadDir, { recursive: true });
+        
+        const localPath = path.join(uploadDir, fileName.split('/')[1]);
+        await fs.writeFile(localPath, imageBuffer);
+        
+        const publicUrl = `/uploads/${fileName.split('/')[1]}`;
         
         const newPhotoData: Omit<Photo, 'id'> = {
             author,
@@ -136,37 +137,24 @@ export async function createPhoto({ author, caption, base64data, aiHint, filter 
 
 export async function deletePhoto(photoId: string, imageUrl: string) {
   try {
-    // First, delete the document from Firestore
     await db.collection(PHOTOS_COLLECTION).doc(photoId).delete();
 
-    // Then, delete the file from Storage
-    // Extract the file path from the URL. This is a more robust way.
-    // Example URL: https://storage.googleapis.com/your-bucket-name/photos/filename.jpg
-    const bucketName = storage.bucket().name;
-    const prefix = `https://storage.googleapis.com/${bucketName}/`;
-    if (imageUrl.startsWith(prefix)) {
-        const filePath = imageUrl.substring(prefix.length).split('?')[0];
-        await storage.bucket().file(filePath).delete();
-    } else {
-        // Fallback for older or different URL formats if necessary
-        const decodedUrl = decodeURIComponent(imageUrl);
-        const filePath = decodedUrl.split('/o/')[1].split('?')[0];
-        await storage.bucket().file(filePath).delete();
-    }
+    // Delete local file
+    const filePath = path.join(process.cwd(), 'public', imageUrl);
+    await fs.unlink(filePath);
     
     revalidatePath('/feed');
     revalidatePath('/admin/dashboard');
     return { success: true };
   } catch(error) {
     console.error("Erro ao excluir foto:", error);
-    // Handle cases where the file might have already been deleted from storage
-    if (error instanceof Error && (error.message.includes('No such object') || error.message.includes('does not exist'))) {
-        console.warn(`Storage object for photoId ${photoId} not found, but proceeding to revalidate paths.`);
+    if (error instanceof Error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
+        console.warn(`Local file for photoId ${photoId} not found, but proceeding.`);
         revalidatePath('/feed');
         revalidatePath('/admin/dashboard');
-        return { success: true, message: "Documento do Firestore excluído, mas o arquivo de imagem não foi encontrado no Storage (pode já ter sido removido)." };
+        return { success: true, message: "Documento do Firestore excluído, mas o arquivo de imagem não foi encontrado (pode já ter sido removido)." };
     }
-    return { success: false, message: "Falha ao excluir a foto." };
+    return { success: false, message: `Falha ao excluir a foto. Detalhes: ${error instanceof Error ? error.message : 'Erro desconhecido'}` };
   }
 }
 
@@ -179,7 +167,7 @@ export async function suggestCaptionAction(formData: FormData) {
       photoDataUri: formData.get('photoDataUri'),
     });
 
-    const result = await suggestPhotoCaptionFlow({
+    const result = await suggestCaptionAction({
       photoDataUri,
       topicKeywords: 'casamento, celebração, alegria, amor, matrimônio, festa',
     });
