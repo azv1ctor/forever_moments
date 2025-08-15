@@ -24,10 +24,10 @@ export default function AppHeader() {
           <Button asChild>
             <Link href="/upload">
               <Upload className="mr-2 h-4 w-4" />
-              Upload Photo
+              Enviar Foto
             </Link>
           </Button>
-          <Button variant="outline" size="icon" onClick={handleLogout} aria-label="Log out">
+          <Button variant="outline" size="icon" onClick={handleLogout} aria-label="Sair">
             <LogOut className="h-4 w-4" />
           </Button>
         </div>

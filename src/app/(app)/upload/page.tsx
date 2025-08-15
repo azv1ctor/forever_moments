@@ -16,13 +16,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Sparkles, Upload } from 'lucide-react';
 
 const uploadSchema = z.object({
-  caption: z.string().max(280, 'Caption is too long.').optional(),
+  caption: z.string().max(280, 'A legenda é muito longa.').optional(),
   photo: z.any()
-    .refine((files) => files?.length == 1, 'Image is required.')
-    .refine((files) => files?.[0]?.size <= 5000000, `Max file size is 5MB.`)
+    .refine((files) => files?.length == 1, 'A imagem é obrigatória.')
+    .refine((files) => files?.[0]?.size <= 5000000, `O tamanho máximo do arquivo é 5MB.`)
     .refine(
       (files) => ["image/jpeg", "image/png", "image/webp"].includes(files?.[0]?.type),
-      ".jpg, .png and .webp files are accepted."
+      "São aceitos arquivos .jpg, .png e .webp."
     ),
 });
 
@@ -58,7 +58,7 @@ export default function UploadPage() {
 
   const handleSuggestCaption = async () => {
     if (!preview) {
-      toast({ variant: 'destructive', title: 'Please select an image first.' });
+      toast({ variant: 'destructive', title: 'Por favor, selecione uma imagem primeiro.' });
       return;
     }
 
@@ -68,26 +68,23 @@ export default function UploadPage() {
       const result = await suggestCaption(formData);
       if (result.success && result.caption) {
         form.setValue('caption', result.caption);
-        toast({ title: 'Caption suggestion applied!' });
+        toast({ title: 'Sugestão de legenda aplicada!' });
       } else {
-        toast({ variant: 'destructive', title: 'Error', description: result.message });
+        toast({ variant: 'destructive', title: 'Erro', description: result.message });
       }
     });
   };
 
   const onSubmit = (values: z.infer<typeof uploadSchema>) => {
     startTransition(async () => {
-      // In a real app, you would upload the file `values.photo[0]` to a storage service
-      // and get a URL back. For this demo, we use the Base64 preview as the image URL.
-      // This will only work for small images and is not recommended for production.
       if (!preview) return;
       const result = await createPhoto(guestName, values.caption || '', preview, "user uploaded");
 
       if (result.success) {
-        toast({ title: 'Photo uploaded!', description: 'Thanks for sharing your moment.' });
+        toast({ title: 'Foto enviada!', description: 'Obrigado por compartilhar seu momento.' });
         router.push('/feed');
       } else {
-        toast({ variant: 'destructive', title: 'Upload failed', description: 'Please try again.' });
+        toast({ variant: 'destructive', title: 'Falha no envio', description: 'Por favor, tente novamente.' });
       }
     });
   };
@@ -96,8 +93,8 @@ export default function UploadPage() {
     <div className="container mx-auto max-w-2xl px-4 py-8">
       <Card>
         <CardHeader>
-          <CardTitle className="font-headline text-3xl">Share a Photo</CardTitle>
-          <CardDescription>Upload a photo from the wedding for everyone to see.</CardDescription>
+          <CardTitle className="font-headline text-3xl">Compartilhe uma Foto</CardTitle>
+          <CardDescription>Envie uma foto do casamento para todos verem.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -107,7 +104,7 @@ export default function UploadPage() {
                 name="photo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Photo</FormLabel>
+                    <FormLabel>Foto</FormLabel>
                     <FormControl>
                         <Input type="file" accept="image/png, image/jpeg, image/webp" onChange={(e) => {
                             field.onChange(e.target.files);
@@ -121,7 +118,7 @@ export default function UploadPage() {
 
               {preview && (
                 <div className="w-full aspect-video relative rounded-lg overflow-hidden border">
-                    <Image src={preview} alt="Image preview" fill className="object-contain" />
+                    <Image src={preview} alt="Pré-visualização da imagem" fill className="object-contain" />
                 </div>
               )}
 
@@ -131,7 +128,7 @@ export default function UploadPage() {
                 render={({ field }) => (
                   <FormItem>
                     <div className="flex justify-between items-center">
-                      <FormLabel>Caption (Optional)</FormLabel>
+                      <FormLabel>Legenda (Opcional)</FormLabel>
                       <Button
                         type="button"
                         variant="ghost"
@@ -141,11 +138,11 @@ export default function UploadPage() {
                         className="text-accent-foreground"
                       >
                         <Sparkles className="mr-2 h-4 w-4" />
-                        {isSuggesting ? 'Thinking...' : 'Suggest with AI'}
+                        {isSuggesting ? 'Pensando...' : 'Sugerir com IA'}
                       </Button>
                     </div>
                     <FormControl>
-                      <Textarea placeholder="Add a fun caption to your photo..." {...field} />
+                      <Textarea placeholder="Adicione uma legenda divertida à sua foto..." {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -153,7 +150,7 @@ export default function UploadPage() {
               />
 
               <Button type="submit" className="w-full h-12 text-lg" disabled={isPending || !guestName}>
-                {isPending ? 'Uploading...' : 'Share My Photo'}
+                {isPending ? 'Enviando...' : 'Compartilhar Minha Foto'}
                 <Upload className="ml-2 h-4 w-4" />
               </Button>
             </form>

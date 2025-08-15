@@ -18,7 +18,7 @@ export async function likePhoto(photoId: string) {
     revalidatePath('/feed');
     return { success: true };
   }
-  return { success: false, message: 'Photo not found' };
+  return { success: false, message: 'Foto não encontrada' };
 }
 
 export async function addComment(photoId: string, author: string, commentText: string) {
@@ -34,7 +34,7 @@ export async function addComment(photoId: string, author: string, commentText: s
     revalidatePath('/feed');
     return { success: true, comment: newComment };
   }
-  return { success: false, message: 'Photo not found' };
+  return { success: false, message: 'Foto não encontrada' };
 }
 
 export async function createPhoto(author: string, caption: string, imageUrl: string, aiHint: string) {
@@ -65,12 +65,12 @@ export async function suggestCaption(formData: FormData) {
 
     const result = await suggestPhotoCaptionFlow({
       photoDataUri,
-      topicKeywords: 'wedding, celebration, joy, love, marriage, party',
+      topicKeywords: 'casamento, celebração, alegria, amor, matrimônio, festa',
     });
 
     return { success: true, caption: result.suggestedCaption };
   } catch (error) {
     console.error(error);
-    return { success: false, message: 'Failed to suggest a caption.' };
+    return { success: false, message: 'Não foi possível sugerir uma legenda.' };
   }
 }

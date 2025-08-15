@@ -6,9 +6,10 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { likePhoto } from '@/lib/actions';
 import type { Photo } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export default async function PhotoCard({ photo }: { photo: Photo }) {
-  const timeAgo = formatDistanceToNow(new Date(photo.createdAt), { addSuffix: true });
+  const timeAgo = formatDistanceToNow(new Date(photo.createdAt), { addSuffix: true, locale: ptBR });
 
   return (
     <Card className="flex flex-col overflow-hidden rounded-lg shadow-lg transition-all hover:shadow-xl">
@@ -25,7 +26,7 @@ export default async function PhotoCard({ photo }: { photo: Photo }) {
         <div className="aspect-[4/5] relative w-full">
             <Image
                 src={photo.imageUrl}
-                alt={photo.caption || 'Wedding photo'}
+                alt={photo.caption || 'Foto do casamento'}
                 fill
                 className="object-cover"
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"

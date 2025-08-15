@@ -35,8 +35,8 @@ export default function WelcomePage() {
       <Card className="w-full max-w-md shadow-2xl animate-in fade-in-50 zoom-in-95">
         <CardHeader className="items-center text-center">
             <Logo />
-            <CardTitle className="font-headline pt-4 text-3xl">Welcome to Our Celebration</CardTitle>
-            <CardDescription>Enter your name to join the fun and share your photos!</CardDescription>
+            <CardTitle className="font-headline pt-4 text-3xl">Bem-vindo à Nossa Celebração</CardTitle>
+            <CardDescription>Digite seu nome para se juntar à festa e compartilhar suas fotos!</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={(e) => { e.preventDefault(); handleContinue(); }}>
@@ -44,10 +44,10 @@ export default function WelcomePage() {
               <div className="flex flex-col space-y-1.5">
                 <Input
                   id="name"
-                  placeholder="Your Name"
+                  placeholder="Seu Nome"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  aria-label="Your Name"
+                  aria-label="Seu Nome"
                   required
                   className="h-12 text-center text-lg"
                 />
@@ -57,7 +57,7 @@ export default function WelcomePage() {
         </CardContent>
         <CardFooter>
           <Button onClick={handleContinue} className="w-full h-12 text-lg" disabled={!name.trim()}>
-            View Photo Feed
+            Ver Feed de Fotos
           </Button>
         </CardFooter>
       </Card>
