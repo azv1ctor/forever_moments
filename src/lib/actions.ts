@@ -135,27 +135,35 @@ export async function createPhoto({ author, caption, base64data, aiHint, filter 
 
 export async function deletePhoto(photoId: string, imageUrl: string) {
   try {
+    // First, delete the document from Firestore
     await db.collection(PHOTOS_COLLECTION).doc(photoId).delete();
 
-    const decodedUrl = decodeURIComponent(imageUrl);
-    const filePath = decodedUrl.split('/o/')[1].split('?')[0];
-    await storage.bucket().file(filePath).delete();
+    // Then, delete the file from Storage
+    // Extract the file path from the URL. This is a more robust way.
+    // Example URL: https://storage.googleapis.com/your-bucket-name/photos/filename.jpg
+    const bucketName = storage.bucket().name;
+    const prefix = `https://storage.googleapis.com/${bucketName}/`;
+    if (imageUrl.startsWith(prefix)) {
+        const filePath = imageUrl.substring(prefix.length).split('?')[0];
+        await storage.bucket().file(filePath).delete();
+    } else {
+        // Fallback for older or different URL formats if necessary
+        const decodedUrl = decodeURIComponent(imageUrl);
+        const filePath = decodedUrl.split('/o/')[1].split('?')[0];
+        await storage.bucket().file(filePath).delete();
+    }
     
     revalidatePath('/feed');
     revalidatePath('/admin/dashboard');
     return { success: true };
   } catch(error) {
     console.error("Erro ao excluir foto:", error);
-    if (error instanceof Error && error.message.includes('does not exist')) {
-        try {
-            await db.collection(PHOTOS_COLLECTION).doc(photoId).delete();
-            revalidatePath('/feed');
-            revalidatePath('/admin/dashboard');
-            return { success: true };
-        } catch (dbError){
-            console.error("Erro ao excluir documento do Firestore após falha no storage:", dbError);
-             return { success: false, message: "Falha ao excluir a foto do banco de dados." };
-        }
+    // Handle cases where the file might have already been deleted from storage
+    if (error instanceof Error && (error.message.includes('No such object') || error.message.includes('does not exist'))) {
+        console.warn(`Storage object for photoId ${photoId} not found, but proceeding to revalidate paths.`);
+        revalidatePath('/feed');
+        revalidatePath('/admin/dashboard');
+        return { success: true, message: "Documento do Firestore excluído, mas o arquivo de imagem não foi encontrado no Storage (pode já ter sido removido)." };
     }
     return { success: false, message: "Falha ao excluir a foto." };
   }
@@ -175,7 +183,7 @@ export async function suggestCaption(formData: FormData) {
       topicKeywords: 'casamento, celebração, alegria, amor, matrimônio, festa',
     });
 
-    return { success: true, caption: result.suggestedCaption };
+    return { success: true, caption: result.caption };
   } catch (error) {
     console.error(error);
     return { success: false, message: 'Não foi possível sugerir uma legenda.' };
