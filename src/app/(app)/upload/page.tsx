@@ -86,38 +86,53 @@ export default function UploadPage() {
     });
   };
 
+  const processAndSubmit = async (file: File, values: z.infer<typeof uploadSchema>) => {
+    try {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onloadend = async () => {
+            const base64data = reader.result as string;
+            const result = await createPhoto({
+                author: guestName,
+                caption: values.caption || '',
+                base64data: base64data,
+                aiHint: "user uploaded",
+                filter: selectedFilter
+            });
+
+            if (result.success) {
+                toast({ title: 'Foto enviada!', description: 'Obrigado por compartilhar seu momento.' });
+                router.push('/feed');
+            } else {
+                toast({ variant: 'destructive', title: 'Falha no envio', description: result.message || 'Por favor, tente novamente.' });
+            }
+        }
+        reader.onerror = () => {
+             toast({ variant: 'destructive', title: 'Erro de Leitura', description: 'Não foi possível ler o arquivo da imagem.' });
+        }
+    } catch (error) {
+        console.error("Error processing file:", error);
+        toast({ variant: 'destructive', title: 'Erro no processamento do arquivo', description: 'Não foi possível processar sua imagem. Tente um formato diferente.' });
+    }
+  };
+
   const onSubmit = (values: z.infer<typeof uploadSchema>) => {
     startTransition(async () => {
         let file = values.photo;
         if (!file) return;
+        
+        const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic');
 
-        try {
-            if (file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic')) {
-              file = await convertHeicToJpeg(file);
-            }
-    
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onloadend = async () => {
-                const base64data = reader.result as string;
-                const result = await createPhoto({
-                    author: guestName,
-                    caption: values.caption || '',
-                    base64data: base64data,
-                    aiHint: "user uploaded",
-                    filter: selectedFilter
-                });
-
-                if (result.success) {
-                    toast({ title: 'Foto enviada!', description: 'Obrigado por compartilhar seu momento.' });
-                    router.push('/feed');
-                } else {
-                    toast({ variant: 'destructive', title: 'Falha no envio', description: 'Por favor, tente novamente.' });
-                }
-            }
-        } catch (error) {
-            console.error("Error processing file:", error);
-            toast({ variant: 'destructive', title: 'Erro no processamento do arquivo', description: 'Não foi possível processar sua imagem. Tente um formato diferente.' });
+        if (isHeic) {
+          try {
+            const convertedFile = await convertHeicToJpeg(file);
+            processAndSubmit(convertedFile, values);
+          } catch (error) {
+             console.error("Error converting HEIC:", error);
+             toast({ variant: 'destructive', title: 'Erro na conversão', description: 'Não foi possível converter a imagem HEIC. Tente outro formato.' });
+          }
+        } else {
+            processAndSubmit(file, values);
         }
     });
   };
@@ -228,5 +243,3 @@ export default function UploadPage() {
     </div>
   );
 }
-
-    
