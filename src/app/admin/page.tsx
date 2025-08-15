@@ -21,16 +21,14 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    // Basic validation for now, will be replaced with real auth
     if (email === 'joaovictoralvesazevedo@gmail.com' && password === '84153703cC!') {
       toast({
         title: 'Login bem-sucedido!',
         description: 'Redirecionando para o painel de controle...',
       });
-      // In a real app, you'd set a session cookie here
-      // For now, we can just redirect.
-      // A real dashboard page needs to be created at /admin/dashboard
-       router.push('/'); // Redirecting to home for now
+      // In a real app, you'd use a more secure session management system
+      sessionStorage.setItem('adminLoggedIn', 'true');
+      router.push('/admin/dashboard');
     } else {
       toast({
         variant: 'destructive',

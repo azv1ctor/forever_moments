@@ -40,6 +40,7 @@ export async function likePhoto(photoId: string, like: boolean) {
     await photoRef.update({ likes: increment });
     
     revalidatePath('/feed');
+    revalidatePath('/admin/dashboard');
     return { success: true };
   } catch (error) {
     console.error("Erro ao curtir foto:", error);
@@ -62,6 +63,7 @@ export async function addComment(photoId: string, author: string, commentText: s
     });
 
     revalidatePath('/feed');
+    revalidatePath('/admin/dashboard');
     return { success: true, comment: newComment };
   } catch (error) {
     console.error("Erro ao adicionar comentário:", error);
@@ -69,36 +71,30 @@ export async function addComment(photoId: string, author: string, commentText: s
   }
 }
 
-// ATENÇÃO: Função createPhoto foi drasticamente alterada!
 export async function createPhoto(author: string, caption: string, base64data: string, aiHint: string, filter?: string) {
-    // A imagem vem como um Data URL (base64) da página de upload
     if (!base64data.startsWith('data:image/')) {
         return { success: false, message: 'Formato de imagem inválido.' };
     }
 
     try {
-        // 1. Converter Base64 para um Buffer
         const imageBuffer = Buffer.from(base64data.split(',')[1], 'base64');
         const mimeType = base64data.match(/data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
         
-        // 2. Fazer upload para o Firebase Storage
         const fileName = `photos/${Date.now()}-${Math.round(Math.random() * 1E9)}.jpg`;
         const file = storage.bucket().file(fileName);
         await file.save(imageBuffer, {
             metadata: { contentType: mimeType }
         });
 
-        // 3. Obter a URL pública da imagem
         const [publicUrl] = await file.getSignedUrl({
             action: 'read',
-            expires: '01-01-2500' // Data de expiração longa
+            expires: '01-01-2500'
         });
         
-        // 4. Salvar os metadados da foto no Firestore
         const newPhoto: Omit<Photo, 'id'> = {
             author,
             caption,
-            imageUrl: publicUrl, // URL do Firebase Storage
+            imageUrl: publicUrl,
             aiHint,
             filter: filter || 'filter-none',
             likes: 0,
@@ -108,17 +104,46 @@ export async function createPhoto(author: string, caption: string, base64data: s
 
         const docRef = await db.collection(PHOTOS_COLLECTION).add(newPhoto);
 
-        // 5. Revalidar o cache e retornar sucesso
         revalidatePath('/feed');
-        return { success: true, photo: { id: docRef.id, ...newPhoto } }; // Retorna o objeto para UI otimista
+        revalidatePath('/admin/dashboard');
+        return { success: true, photo: { id: docRef.id, ...newPhoto } };
     } catch (error) {
         console.error("Erro ao criar foto:", error);
         return { success: false, message: "Falha no upload da imagem." };
     }
 }
 
+export async function deletePhoto(photoId: string, imageUrl: string) {
+  try {
+    // 1. Delete from Firestore
+    await db.collection(PHOTOS_COLLECTION).doc(photoId).delete();
 
-// A função de sugestão de legenda não precisa de alterações
+    // 2. Delete from Storage
+    const decodedUrl = decodeURIComponent(imageUrl);
+    const filePath = decodedUrl.split('/o/')[1].split('?')[0];
+    await storage.bucket().file(filePath).delete();
+    
+    revalidatePath('/feed');
+    revalidatePath('/admin/dashboard');
+    return { success: true };
+  } catch(error) {
+    console.error("Erro ao excluir foto:", error);
+    if (error instanceof Error && error.message.includes('does not exist')) {
+        // If file is already gone from storage, but doc exists, still try to delete doc
+        try {
+            await db.collection(PHOTOS_COLLECTION).doc(photoId).delete();
+            revalidatePath('/feed');
+            revalidatePath('/admin/dashboard');
+            return { success: true };
+        } catch (dbError){
+            console.error("Erro ao excluir documento do Firestore após falha no storage:", dbError);
+             return { success: false, message: "Falha ao excluir a foto do banco de dados." };
+        }
+    }
+    return { success: false, message: "Falha ao excluir a foto." };
+  }
+}
+
 const SuggestCaptionSchema = z.object({
   photoDataUri: z.string(),
 });
