@@ -1,5 +1,9 @@
 // /src/lib/firebase-admin.ts
 import admin from 'firebase-admin';
+import { config } from 'dotenv';
+
+// Force load environment variables from .env file
+config();
 
 // Garante que o SDK do Firebase Admin não seja inicializado múltiplas vezes.
 if (!admin.apps.length) {
