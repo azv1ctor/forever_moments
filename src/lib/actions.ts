@@ -7,8 +7,8 @@ import { suggestPhotoCaption as suggestPhotoCaptionFlow } from '@/ai/flows/sugge
 import type { Photo } from './types';
 
 export async function getPhotos() {
-  // Sort by newest first
-  return photos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  // Sort by newest first, return a sorted copy
+  return [...photos].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 export async function likePhoto(photoId: string, like: boolean) {
@@ -77,5 +77,3 @@ export async function suggestCaption(formData: FormData) {
     return { success: false, message: 'Não foi possível sugerir uma legenda.' };
   }
 }
-
-    
