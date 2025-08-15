@@ -30,8 +30,8 @@ export default function PhotoCard({ photo: initialPhoto }: { photo: Photo }) {
     setGuestName(localStorage.getItem('guestName') || 'Convidado');
   }, [photo.id]);
 
-  const timeAgo = formatDistanceToNow(new Date(photo.createdAt), { addSuffix: true, locale: ptBR });
-
+  const timeAgo = photo.createdAt ? formatDistanceToNow(new Date(photo.createdAt), { addSuffix: true, locale: ptBR }) : 'agora mesmo';
+  
   const handleLike = async () => {
     const newLikedState = !isLiked;
     const originalLikes = photo.likes;
@@ -62,13 +62,15 @@ export default function PhotoCard({ photo: initialPhoto }: { photo: Photo }) {
     startTransition(async () => {
         const result = await addComment(photo.id, guestName, newComment.trim());
         if(result.success && result.comment) {
-            setPhoto(prev => ({ ...prev, comments: [...prev.comments, result.comment as CommentType] }));
+            setPhoto(prev => ({ ...prev, comments: [...(prev.comments || []), result.comment as CommentType] }));
             setNewComment('');
         } else {
             toast({ variant: 'destructive', title: 'Erro', description: result.message });
         }
     });
   }
+  
+  const comments = photo.comments || [];
 
   return (
     <Card className="flex flex-col overflow-hidden rounded-lg shadow-lg transition-all hover:shadow-xl">
@@ -118,19 +120,19 @@ export default function PhotoCard({ photo: initialPhoto }: { photo: Photo }) {
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setShowComments(!showComments)} className="flex items-center gap-2 text-muted-foreground">
                 <MessageSquare className="h-5 w-5" />
-                <span>{photo.comments.length}</span>
+                <span>{comments.length}</span>
             </Button>
         </div>
         {showComments && (
             <div className="w-full p-2 space-y-3">
                 <div className="max-h-32 overflow-y-auto space-y-2">
-                    {photo.comments.map(comment => (
+                    {comments.map(comment => (
                         <div key={comment.id} className="text-xs">
                            <span className="font-semibold">{comment.author}:</span>{' '}
                            {comment.text}
                         </div>
                     ))}
-                    {photo.comments.length === 0 && (
+                    {comments.length === 0 && (
                       <p className="text-xs text-muted-foreground text-center">Seja o primeiro a comentar!</p>
                     )}
                 </div>
@@ -152,5 +154,3 @@ export default function PhotoCard({ photo: initialPhoto }: { photo: Photo }) {
     </Card>
   );
 }
-
-    
