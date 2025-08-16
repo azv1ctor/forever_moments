@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
@@ -19,6 +18,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import type { Wedding } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import heic2any from 'heic2any';
+import imageCompression from 'browser-image-compression';
 
 const MAX_IMAGE_SIZE_MB = 10;
 const MAX_VIDEO_SIZE_MB = 50;
@@ -27,8 +27,10 @@ const MAX_VIDEO_SIZE = MAX_VIDEO_SIZE_MB * 1024 * 1024;
 
 const uploadSchema = z.object({
   caption: z.string().max(280, 'A legenda é muito longa.').optional(),
-  file: z.instanceof(File, { message: 'O arquivo é obrigatório.' })
-    .refine((file) => file.size > 0, 'O arquivo é obrigatório.')
+  file: z.any()
+    .refine((file): file is File => file && file.size > 0, {
+      message: 'O envio de um arquivo é obrigatório.',
+    })
     .refine(
         (file) => {
             const isVideo = file.type.startsWith('video/');
@@ -65,7 +67,7 @@ export default function UploadPage() {
   const [selectedFilter, setSelectedFilter] = useState('filter-none');
   const [wedding, setWedding] = useState<Wedding | null>(null);
   const [isLoadingWedding, setIsLoadingWedding] = useState(true);
-  const [isConverting, setIsConverting] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   const form = useForm<z.infer<typeof uploadSchema>>({
     resolver: zodResolver(uploadSchema),
@@ -95,52 +97,56 @@ export default function UploadPage() {
       return;
     }
 
-    const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
-    
-    if (isHeic) {
-      setIsConverting(true);
-      toast({ title: 'Processando imagem...', description: 'Aguarde um instante.' });
-      console.log("Arquivo HEIC detectado. Iniciando conversão no cliente...");
+    setIsProcessing(true);
+    setPreview(null);
 
-      try {
-        const convertedBlob = await heic2any({
-          blob: file,
-          toType: "image/jpeg",
-          quality: 0.7, // Compressão mais agressiva para reduzir o tamanho
-        }) as Blob;
-        
-        file = new File([convertedBlob], file.name.replace(/\.[^/.]+$/, ".jpeg"), {
-          type: "image/jpeg",
-        });
+    try {
+      const isVideoFile = file.type.startsWith('video/');
+      setIsVideo(isVideoFile);
 
-        console.log("Conversão para JPEG concluída com sucesso!");
-        toast({ title: 'Imagem convertida!', description: 'Sua imagem HEIC foi convertida para JPEG.' });
-      } catch (error) {
-        console.error("Erro ao converter HEIC:", error);
-        toast({ variant: 'destructive', title: 'Erro de Conversão', description: 'Não foi possível converter a imagem HEIC.' });
-        setIsConverting(false);
-        return;
-      } finally {
-        setIsConverting(false);
+      if (!isVideoFile) {
+        const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic');
+        if (isHeic) {
+          console.log("HEIC detectado. Convertendo para JPEG...");
+          const convertedBlob = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 }) as Blob;
+          file = new File([convertedBlob], file.name.replace(/\.[^/.]+$/, ".jpeg"), { type: "image/jpeg" });
+          console.log("Conversão concluída.");
+        }
+
+        console.log(`Tamanho antes da compressão: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+        const options = {
+          maxSizeMB: 0.95,
+          maxWidthOrHeight: 1920,
+          useWebWorker: true,
+        };
+        const compressedFile = await imageCompression(file, options);
+        console.log(`Tamanho final APÓS compressão: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
+        file = compressedFile;
       }
-    }
 
-    form.setValue('file', file, { shouldValidate: true });
-    const isVideoFile = file.type.startsWith('video/');
-    setIsVideo(isVideoFile);
-    
-    if (preview) {
-      URL.revokeObjectURL(preview);
+      form.setValue('file', file);
+      await form.trigger('file'); 
+
+      if (preview) URL.revokeObjectURL(preview);
+      setPreview(URL.createObjectURL(file));
+
+    } catch (error) {
+      console.error("Erro ao processar arquivo:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Não foi possível processar seu arquivo.';
+      toast({ variant: 'destructive', title: 'Erro no Processamento', description: errorMessage });
+      setPreview(null);
+      setIsVideo(false);
+      form.resetField('file');
+    } finally {
+      setIsProcessing(false);
     }
-    setPreview(URL.createObjectURL(file));
   };
-
+  
   const handleSuggestCaption = async () => {
     if (!preview || isVideo) {
       toast({ variant: 'destructive', title: 'Por favor, selecione uma imagem primeiro.' });
       return;
     }
-
     startSuggestionTransition(async () => {
         const file = form.getValues('file');
         const reader = new FileReader();
@@ -165,7 +171,7 @@ export default function UploadPage() {
         const file = values.file;
         if (!file || !weddingId) return;
 
-        console.log(`%cTENTANDO ENVIAR ARQUIVO: Tamanho: ${(file.size / 1024 / 1024).toFixed(2)} MB, Tipo: ${file.type}`, 'color: blue; font-weight: bold;');
+        console.log(`%cTENTANDO ENVIAR ARQUIVO FINAL: Tamanho: ${(file.size / 1024 / 1024).toFixed(2)} MB, Tipo: ${file.type}`, 'color: green; font-weight: bold;');
         
         try {
           const formData = new FormData();
@@ -174,9 +180,7 @@ export default function UploadPage() {
           formData.append('file', file);
           formData.append('caption', values.caption || '');
           formData.append('filter', selectedFilter);
-
           const result = await createPhoto(formData);
-
           if (result.success) {
               toast({ title: 'Mídia enviada!', description: 'Obrigado por compartilhar seu momento.' });
               router.push(`/${weddingId}/feed`);
@@ -185,12 +189,12 @@ export default function UploadPage() {
           }
         } catch (error) {
            console.error("Error submitting form:", error);
-           const errorMessage = error instanceof Error ? error.message : 'Não foi possível processar sua mídia. Tente um formato diferente.';
+           const errorMessage = error instanceof Error ? error.message : 'Não foi possível processar sua mídia.';
            toast({ variant: 'destructive', title: 'Erro no Envio', description: errorMessage });
         }
     });
   };
-  
+
   if (isLoadingWedding) {
       return (
           <div className="container mx-auto max-w-2xl px-4 py-8">
@@ -222,7 +226,7 @@ export default function UploadPage() {
               <FormField
                 control={form.control}
                 name="file"
-                render={() => (
+                render={({ field }) => ( 
                   <FormItem>
                     <FormLabel>Foto ou Vídeo</FormLabel>
                       <div className="relative flex justify-center items-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted">
@@ -232,10 +236,10 @@ export default function UploadPage() {
                               ) : (
                                   <Image src={preview} alt="Pré-visualização" fill className={cn('object-contain rounded-lg', selectedFilter)} />
                               )
-                          ) : isConverting ? (
+                          ) : isProcessing ? (
                               <div className="text-center text-muted-foreground flex flex-col items-center">
                                   <Loader2 className="h-12 w-12 mx-auto animate-spin" />
-                                  <p className="mt-2">Convertendo imagem...</p>
+                                  <p className="mt-2">Carregando sua mídia...</p>
                               </div>
                           ) : (
                               <div className="text-center text-muted-foreground">
@@ -250,7 +254,7 @@ export default function UploadPage() {
                               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                               accept={acceptedFileTypes}
                               onChange={handleFileChange}
-                              disabled={isConverting}
+                              disabled={isProcessing}
                           />
                       </div>
                     <FormMessage />
@@ -304,7 +308,7 @@ export default function UploadPage() {
                         variant="ghost"
                         size="sm"
                         onClick={handleSuggestCaption}
-                        disabled={!preview || isVideo || isSuggesting || isConverting}
+                        disabled={!preview || isVideo || isSuggesting || isProcessing}
                         className="text-accent-foreground"
                       >
                         <Sparkles className="mr-2 h-4 w-4" />
@@ -319,7 +323,7 @@ export default function UploadPage() {
                 )}
               />
 
-              <Button type="submit" className="w-full h-12 text-lg" disabled={isPending || !guestName || !preview || isConverting}>
+              <Button type="submit" className="w-full h-12 text-lg" disabled={isPending || !guestName || !preview || isProcessing || !form.formState.isValid}>
                 {isPending ? 'Enviando...' : 'Compartilhar Momento'}
                 <Upload className="ml-2 h-4 w-4" />
               </Button>
