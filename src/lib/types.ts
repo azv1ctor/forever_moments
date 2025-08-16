@@ -53,3 +53,5 @@ export interface AnalyticsData {
     photosPerWedding: { name: string; count: number }[];
     activityLast7Days: { date: string; count: number }[];
 }
+
+    

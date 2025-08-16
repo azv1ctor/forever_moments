@@ -106,7 +106,6 @@ const CreatePhotoSchema = z.object({
   weddingId: z.string(),
   author: z.string(),
   caption: z.string().optional(),
-  aiHint: z.string().optional(),
   filter: z.string().optional(),
 });
 
@@ -119,12 +118,12 @@ export async function createPhoto(formData: FormData) {
         }
 
         const data = {
-            weddingId: formData.get('weddingId') as string,
-            author: formData.get('author') as string,
-            caption: (formData.get('caption') as string) || undefined,
-            aiHint: (formData.get('aiHint') as string) || undefined,
-            filter: (formData.get('filter') as string) || undefined,
+            weddingId: formData.get('weddingId'),
+            author: formData.get('author'),
+            caption: formData.get('caption'),
+            filter: formData.get('filter'),
         };
+
         const validated = CreatePhotoSchema.safeParse(data);
 
         if (!validated.success) {
@@ -132,7 +131,7 @@ export async function createPhoto(formData: FormData) {
             return { success: false, message: `Dados inválidos: ${validated.error.message}` };
         }
         
-        const { weddingId, author, caption, aiHint, filter } = validated.data;
+        const { weddingId, author, caption, filter } = validated.data;
         
         if (!author) {
             return { success: false, message: 'Usuário não identificado. Faça o login novamente.' };
@@ -147,12 +146,12 @@ export async function createPhoto(formData: FormData) {
             author,
             caption: caption || '',
             imageUrl: publicUrl,
-            aiHint: aiHint || "user uploaded",
             filter: filter || 'filter-none',
             likes: 0,
             comments: [],
             createdAt: new Date().toISOString(),
             mediaType,
+            aiHint: 'user-uploaded'
         };
 
         const docRef = await db.collection(PHOTOS_COLLECTION).add(newPhotoData);
@@ -442,3 +441,5 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
         throw new Error("Could not retrieve analytics data.");
     }
 }
+
+    

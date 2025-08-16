@@ -13,30 +13,32 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import Image from 'next/image';
 import { createPhoto, getWedding, suggestCaptionAction } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, Upload, Camera, SlidersHorizontal, Film, Loader2 } from 'lucide-react';
+import { Sparkles, Upload, Camera, SlidersHorizontal, Loader2 } from 'lucide-react';
 import { convertHeicToJpeg } from '@/lib/heic-converter';
 import { cn } from '@/lib/utils';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import type { Wedding } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_IMAGE_SIZE_MB = 10;
+const MAX_VIDEO_SIZE_MB = 50;
+const MAX_IMAGE_SIZE = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+const MAX_VIDEO_SIZE = MAX_VIDEO_SIZE_MB * 1024 * 1024;
 
 const uploadSchema = z.object({
   caption: z.string().max(280, 'A legenda é muito longa.').optional(),
-  file: z.custom<File>((v) => v instanceof File && v.size > 0, 'O arquivo é obrigatório.')
+  file: z.instanceof(File, { message: 'O arquivo é obrigatório.' })
+    .refine((file) => file.size > 0, 'O arquivo é obrigatório.')
     .refine(
         (file) => {
-            if (!file || file.size === 0) return true; // Let required check handle this
             const isVideo = file.type.startsWith('video/');
             if (isVideo) return file.size <= MAX_VIDEO_SIZE;
             return file.size <= MAX_IMAGE_SIZE;
         },
         (file) => ({
             message: file.type.startsWith('video/')
-                ? `O tamanho máximo do vídeo é ${MAX_VIDEO_SIZE / 1024 / 1024}MB.`
-                : `O tamanho máximo da imagem é ${MAX_IMAGE_SIZE / 1024 / 1024}MB.`
+                ? `O tamanho máximo do vídeo é ${MAX_VIDEO_SIZE_MB}MB.`
+                : `O tamanho máximo da imagem é ${MAX_IMAGE_SIZE_MB}MB.`
         })
     ),
 });
@@ -96,7 +98,7 @@ export default function UploadPage() {
             file = await convertHeicToJpeg(file);
         }
 
-        form.setValue('file', file);
+        form.setValue('file', file, { shouldValidate: true });
         const isVideoFile = file.type.startsWith('video/');
         setIsVideo(isVideoFile);
         setPreview(URL.createObjectURL(file));
@@ -309,3 +311,5 @@ export default function UploadPage() {
     </div>
   );
 }
+
+    
