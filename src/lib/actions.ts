@@ -1,4 +1,3 @@
-
 // /src/lib/actions.ts
 'use server';
 
@@ -20,7 +19,6 @@ const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
 
 // Helper function to handle file saving
 async function saveFile(file: File, subfolder: string): Promise<string> {
-    // Ensure the base uploads directory exists
     await fs.mkdir(UPLOADS_DIR, { recursive: true });
     
     const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -28,7 +26,6 @@ async function saveFile(file: File, subfolder: string): Promise<string> {
     const folderPath = path.join(UPLOADS_DIR, subfolder);
     await fs.mkdir(folderPath, { recursive: true });
     
-    // Create a unique filename
     const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}-${file.name}`;
     const localPath = path.join(folderPath, filename);
     
@@ -42,8 +39,8 @@ async function saveFile(file: File, subfolder: string): Promise<string> {
 export async function getPhotos(weddingId: string): Promise<Photo[]> {
   try {
     const snapshot = await db.collection(PHOTOS_COLLECTION)
-                             .where('weddingId', '==', weddingId)
-                             .get();
+                              .where('weddingId', '==', weddingId)
+                              .get();
     if (snapshot.empty) {
       return [];
     }
@@ -56,7 +53,7 @@ export async function getPhotos(weddingId: string): Promise<Photo[]> {
        } as Photo
     });
     
-    // Sort photos by creation date descending in the code
+    // A ordenação é feita aqui no código para evitar a necessidade de um índice composto no Firestore.
     photos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return photos;
@@ -286,55 +283,61 @@ export async function createWedding(formData: FormData) {
 }
 
 export async function updateWedding(id: string, formData: FormData) {
-    try {
-        const data = Object.fromEntries(formData);
-        const parsedData = { ...data, logo: data.logo instanceof File ? data.logo : null }
-        // Use a partial schema for updates, as not all fields are always present
-         const UpdateWeddingSchema = WeddingSchema.partial().extend({
-             status: z.enum(['Ativo', 'Inativo']).optional(),
-             coupleNames: z.string().min(3, "Nomes dos noivos são obrigatórios.").optional(),
-             date: z.string().min(1, "A data do evento é obrigatória.").optional(),
-         });
-        const validated = UpdateWeddingSchema.safeParse(parsedData);
+  try {
+      const data = Object.fromEntries(formData);
+      const parsedData = { ...data, logo: data.logo instanceof File ? data.logo : null }
+      
+      const UpdateWeddingSchema = WeddingSchema.partial().extend({
+           status: z.enum(['Ativo', 'Inativo']).optional(),
+           coupleNames: z.string().min(3, "Nomes dos noivos são obrigatórios.").optional(),
+           date: z.string().min(1, "A data do evento é obrigatória.").optional(),
+      });
+      const validated = UpdateWeddingSchema.safeParse(parsedData);
 
 
-        if (!validated.success) {
-            return { success: false, message: `Dados inválidos: ${validated.error.message}` };
-        }
-        const { logo, ...weddingData } = validated.data;
-        
-        const updateData: any = { ...weddingData };
-        
-        if (logo && logo.size > 0) {
-            const currentWedding = await getWedding(id);
-            if(currentWedding?.logoUrl) {
-                try {
-                    const oldLogoPath = path.join(process.cwd(), 'public', currentWedding.logoUrl);
-                    await fs.unlink(oldLogoPath);
-                } catch(e) {
-                    console.warn("Could not delete old logo", e);
-                }
-            }
-            updateData.logoUrl = await saveFile(logo, 'logos');
-        }
+      if (!validated.success) {
+          return { success: false, message: `Dados inválidos: ${validated.error.message}` };
+      }
+      const { logo, ...weddingData } = validated.data;
+      
+      // ✅ 1. Removida a tipagem explícita 'any'.
+      // Agora o TypeScript infere o tipo a partir de 'weddingData', que é seguro.
+      const updateData = { ...weddingData };
+      
+      if (logo && logo.size > 0) {
+          const currentWedding = await getWedding(id);
+          if(currentWedding?.logoUrl) {
+              try {
+                  const oldLogoPath = path.join(process.cwd(), 'public', currentWedding.logoUrl);
+                  await fs.unlink(oldLogoPath);
+              } catch(e) {
+                  console.warn("Could not delete old logo", e);
+              }
+          }
+          // A propriedade 'logoUrl' é adicionada dinamicamente, o que é ok.
+          (updateData as any).logoUrl = await saveFile(logo, 'logos');
+      }
 
-        if (updateData.plan) {
-            updateData.planDetails = plans[updateData.plan].features;
-        }
+      if (updateData.plan) {
+          // ✅ 2. Garantimos para o TypeScript que 'updateData.plan' é do tipo 'WeddingPlan'.
+          // O 'if' já garante que 'updateData.plan' existe.
+          const planKey = updateData.plan as WeddingPlan;
+          (updateData as any).planDetails = plans[planKey].features;
+      }
 
-        await db.collection(WEDDINGS_COLLECTION).doc(id).update(updateData);
+      await db.collection(WEDDINGS_COLLECTION).doc(id).update(updateData);
 
-        const doc = await db.collection(WEDDINGS_COLLECTION).doc(id).get();
-        const updatedWedding = { id: doc.id, ...doc.data() } as Wedding;
+      const doc = await db.collection(WEDDINGS_COLLECTION).doc(id).get();
+      const updatedWedding = { id: doc.id, ...doc.data() } as Wedding;
 
-        revalidatePath('/admin/weddings');
-        revalidatePath(`/${id}`);
-        return { success: true, wedding: updatedWedding };
-    } catch (error) {
-        console.error("[UPDATE_WEDDING_ERROR]", error);
-        const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
-        return { success: false, message: `Falha ao atualizar casamento: ${errorMessage}` };
-    }
+      revalidatePath('/admin/weddings');
+      revalidatePath(`/${id}`);
+      return { success: true, wedding: updatedWedding };
+  } catch (error) {
+      console.error("[UPDATE_WEDDING_ERROR]", error);
+      const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
+      return { success: false, message: `Falha ao atualizar casamento: ${errorMessage}` };
+  }
 }
 
 export async function deleteWedding(id: string) {
@@ -357,8 +360,8 @@ export async function deleteWedding(id: string) {
         const weddingToDelete = await getWedding(id);
         if (weddingToDelete?.logoUrl) {
             try {
-               const logoPath = path.join(process.cwd(), 'public', weddingToDelete.logoUrl);
-               await fs.unlink(logoPath);
+              const logoPath = path.join(process.cwd(), 'public', weddingToDelete.logoUrl);
+              await fs.unlink(logoPath);
             } catch(e) {
                 console.warn("Could not delete logo on wedding deletion", e);
             }
