@@ -20,6 +20,7 @@ const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
 
 // Helper function to handle file saving
 async function saveFile(file: File, subfolder: string): Promise<string> {
+    // Ensure the base uploads directory exists
     await fs.mkdir(UPLOADS_DIR, { recursive: true });
     
     const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -113,10 +114,18 @@ const CreatePhotoSchema = z.object({
 
 export async function createPhoto(formData: FormData) {
     try {
-        const data = Object.fromEntries(formData);
+        const data = {
+            weddingId: formData.get('weddingId'),
+            author: formData.get('author'),
+            caption: formData.get('caption'),
+            file: formData.get('file'),
+            aiHint: formData.get('aiHint'),
+            filter: formData.get('filter'),
+        };
         const validated = CreatePhotoSchema.safeParse(data);
 
         if (!validated.success) {
+            console.error("Validation failed:", validated.error.flatten());
             return { success: false, message: `Dados inválidos: ${validated.error.message}` };
         }
         
