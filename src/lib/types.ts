@@ -44,3 +44,12 @@ export interface Wedding {
     logoUrl?: string;
     planDetails: PlanDetails;
 }
+
+export interface AnalyticsData {
+    totalWeddings: number;
+    totalPhotos: number;
+    totalLikes: number;
+    totalComments: number;
+    photosPerWedding: { name: string; count: number }[];
+    activityLast7Days: { date: string; count: number }[];
+}

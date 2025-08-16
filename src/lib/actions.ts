@@ -6,11 +6,12 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { Photo, Comment, Wedding, WeddingStatus, WeddingPlan, PlanDetails, MediaType } from './types';
+import type { Photo, Comment, Wedding, WeddingStatus, WeddingPlan, PlanDetails, MediaType, AnalyticsData } from './types';
 import { suggestPhotoCaption } from '@/ai/flows/suggest-photo-caption';
 import { plans } from '@/lib/plans';
 import fs from 'fs/promises';
 import path from 'path';
+import { format, subDays } from 'date-fns';
 
 const PHOTOS_COLLECTION = 'photos';
 const WEDDINGS_COLLECTION = 'weddings';
@@ -373,5 +374,56 @@ export async function deleteWedding(id: string) {
         console.error("[DELETE_WEDDING_ERROR]", error);
         const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
         return { success: false, message: `Falha ao excluir casamento: ${errorMessage}` };
+    }
+}
+
+
+// --- Analytics Actions ---
+
+export async function getAnalyticsData(): Promise<AnalyticsData> {
+    try {
+        const [weddingsSnapshot, photosSnapshot] = await Promise.all([
+            db.collection(WEDDINGS_COLLECTION).get(),
+            db.collection(PHOTOS_COLLECTION).get()
+        ]);
+
+        const weddings = weddingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Wedding));
+        const photos = photosSnapshot.docs.map(doc => doc.data() as Photo);
+
+        // Calculate total stats
+        const totalWeddings = weddings.length;
+        const totalPhotos = photos.length;
+        const totalLikes = photos.reduce((sum, photo) => sum + (photo.likes || 0), 0);
+        const totalComments = photos.reduce((sum, photo) => sum + (photo.comments?.length || 0), 0);
+
+        // Calculate photos per wedding
+        const photosPerWedding = weddings.map(wedding => {
+            const count = photos.filter(photo => photo.weddingId === wedding.id).length;
+            return { name: wedding.coupleNames.split(' & ')[0], count };
+        });
+
+        // Calculate activity in the last 7 days
+        const today = new Date();
+        const activityLast7Days = Array.from({ length: 7 }).map((_, i) => {
+            const date = subDays(today, i);
+            const formattedDate = format(date, 'dd/MM');
+            const count = photos.filter(photo => {
+                const photoDate = new Date(photo.createdAt);
+                return format(photoDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
+            }).length;
+            return { date: formattedDate, count };
+        }).reverse();
+
+        return {
+            totalWeddings,
+            totalPhotos,
+            totalLikes,
+            totalComments,
+            photosPerWedding,
+            activityLast7Days,
+        };
+    } catch (error) {
+        console.error("Error fetching analytics data:", error);
+        throw new Error("Could not retrieve analytics data.");
     }
 }
