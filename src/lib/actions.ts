@@ -138,6 +138,7 @@ export async function createPhoto(formData: FormData) {
         const docRef = await db.collection(PHOTOS_COLLECTION).add(newPhotoData);
         
         revalidatePath(`/${weddingId}/feed`);
+        revalidatePath('/admin/dashboard');
         
         const newPhoto: Photo = {
             id: docRef.id,
@@ -232,14 +233,15 @@ const WeddingSchema = z.object({
   date: z.string().min(1, "A data do evento é obrigatória."),
   plan: z.enum(['Básico', 'Premium', 'Deluxe']),
   price: z.coerce.number().min(0, "O preço deve ser um valor positivo."),
-  status: z.enum(['Ativo', 'Concluído', 'Pendente']),
-  logo: z.instanceof(File).optional(),
+  status: z.enum(['Ativo', 'Inativo', 'Concluído', 'Pendente']),
+  logo: z.instanceof(File).optional().nullable(),
 });
 
 export async function createWedding(formData: FormData) {
     try {
         const data = Object.fromEntries(formData);
-        const validated = WeddingSchema.safeParse(data);
+        const parsedData = { ...data, logo: data.logo instanceof File ? data.logo : null }
+        const validated = WeddingSchema.safeParse(parsedData);
 
         if (!validated.success) {
             return { success: false, message: `Dados inválidos: ${validated.error.message}` };
@@ -253,7 +255,7 @@ export async function createWedding(formData: FormData) {
 
         const newWeddingData = {
             ...weddingData,
-            logoUrl,
+            logoUrl: logoUrl || undefined,
             createdAt: new Date().toISOString(),
         };
 
@@ -272,20 +274,18 @@ export async function createWedding(formData: FormData) {
 export async function updateWedding(id: string, formData: FormData) {
     try {
         const data = Object.fromEntries(formData);
-        const validated = WeddingSchema.safeParse(data);
+        const parsedData = { ...data, logo: data.logo instanceof File ? data.logo : null }
+        const validated = WeddingSchema.safeParse(parsedData);
+
         if (!validated.success) {
             return { success: false, message: `Dados inválidos: ${validated.error.message}` };
         }
         const { logo, ...weddingData } = validated.data;
         
-        let logoUrl;
-        if (logo && logo.size > 0) {
-            logoUrl = await saveFile(logo, 'logos');
-        }
-        
         const updateData: any = { ...weddingData };
-        if (logoUrl) {
-            updateData.logoUrl = logoUrl;
+        
+        if (logo && logo.size > 0) {
+            updateData.logoUrl = await saveFile(logo, 'logos');
         }
 
         await db.collection(WEDDINGS_COLLECTION).doc(id).update(updateData);
@@ -319,6 +319,7 @@ export async function deleteWedding(id: string) {
         await db.collection(WEDDINGS_COLLECTION).doc(id).delete();
         
         revalidatePath('/admin/weddings');
+        revalidatePath('/admin/dashboard');
         return { success: true };
     } catch (error) {
         console.error("[DELETE_WEDDING_ERROR]", error);

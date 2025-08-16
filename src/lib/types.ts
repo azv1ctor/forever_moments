@@ -19,7 +19,7 @@ export interface Photo {
 }
 
 export type WeddingPlan = 'Básico' | 'Premium' | 'Deluxe';
-export type WeddingStatus = 'Ativo' | 'Concluído' | 'Pendente';
+export type WeddingStatus = 'Ativo' | 'Inativo' | 'Concluído' | 'Pendente';
 
 export interface Wedding {
     id: string;

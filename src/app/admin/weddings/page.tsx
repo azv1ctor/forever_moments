@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { getWeddings, createWedding, updateWedding, deleteWedding } from '@/lib/actions';
-import type { Wedding, WeddingPlan } from '@/lib/types';
+import type { Wedding, WeddingPlan, WeddingStatus } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,11 +12,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MoreHorizontal, PlusCircle, Trash2, Edit, Link as LinkIcon, Clipboard } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Edit, Link as LinkIcon, Clipboard, Power, PowerOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 const plans: Record<WeddingPlan, { name: WeddingPlan; min: number; max: number }> = {
   'Básico': { name: 'Básico', min: 1000, max: 1500 },
@@ -73,6 +75,7 @@ export default function WeddingsPage() {
   };
 
   const handleOpenDialog = (wedding: Wedding | null = null) => {
+    resetForm();
     if (wedding) {
       setEditingWedding(wedding);
       setCoupleNames(wedding.coupleNames);
@@ -80,8 +83,6 @@ export default function WeddingsPage() {
       setPlan(wedding.plan);
       setPrice(wedding.price);
       setLogoPreview(wedding.logoUrl || null);
-    } else {
-      resetForm();
     }
     setIsDialogOpen(true);
   };
@@ -95,6 +96,25 @@ export default function WeddingsPage() {
     } else {
       toast({ variant: 'destructive', title: 'Erro', description: result.message });
     }
+  };
+
+  const handleToggleStatus = async (wedding: Wedding) => {
+      const newStatus: WeddingStatus = wedding.status === 'Ativo' ? 'Inativo' : 'Ativo';
+      const formData = new FormData();
+      // We need to pass all fields to satisfy the validation schema
+      formData.append('coupleNames', wedding.coupleNames);
+      formData.append('date', wedding.date);
+      formData.append('plan', wedding.plan);
+      formData.append('price', String(wedding.price));
+      formData.append('status', newStatus);
+
+      const result = await updateWedding(wedding.id, formData);
+      if (result.success && result.wedding) {
+          setWeddings(weddings.map(w => w.id === wedding.id ? result.wedding! : w));
+          toast({ title: 'Sucesso!', description: `Casamento ${newStatus.toLowerCase()}.` });
+      } else {
+          toast({ variant: 'destructive', title: 'Erro', description: result.message });
+      }
   };
 
   const copyToClipboard = (id: string) => {
@@ -112,11 +132,8 @@ export default function WeddingsPage() {
     formData.append('date', new Date(eventDate).toISOString());
     formData.append('plan', plan);
     formData.append('price', String(price));
-    if (editingWedding) {
-        formData.append('status', editingWedding.status);
-    } else {
-        formData.append('status', 'Ativo');
-    }
+    formData.append('status', editingWedding?.status || 'Ativo');
+    
     if (logoFile) {
         formData.append('logo', logoFile);
     }
@@ -168,6 +185,7 @@ export default function WeddingsPage() {
                   <TableHead>Noivos</TableHead>
                   <TableHead className="hidden sm:table-cell">Data</TableHead>
                   <TableHead className="hidden md:table-cell">Plano</TableHead>
+                  <TableHead className="hidden md:table-cell">Status</TableHead>
                   <TableHead>Link</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -181,6 +199,12 @@ export default function WeddingsPage() {
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">{format(new Date(wedding.date), "dd/MM/yyyy")}</TableCell>
                     <TableCell className="hidden md:table-cell">{wedding.plan}</TableCell>
+                     <TableCell className="hidden md:table-cell">
+                        <Badge variant={wedding.status === 'Ativo' ? 'default' : 'secondary'}
+                           className={cn(wedding.status === 'Ativo' ? 'bg-green-600' : 'bg-gray-500')}>
+                          {wedding.status}
+                        </Badge>
+                     </TableCell>
                     <TableCell>
                       <Button variant="ghost" size="sm" onClick={() => copyToClipboard(wedding.id)}>
                         <Clipboard className="mr-2 h-4 w-4" />
@@ -201,6 +225,13 @@ export default function WeddingsPage() {
                                     <Edit className="mr-2 h-4 w-4" />
                                     Editar
                                 </DropdownMenuItem>
+                                 <DropdownMenuItem onClick={() => handleToggleStatus(wedding)}>
+                                    {wedding.status === 'Ativo' ? (
+                                        <><PowerOff className="mr-2 h-4 w-4" />Desativar</>
+                                    ) : (
+                                        <><Power className="mr-2 h-4 w-4" />Ativar</>
+                                    )}
+                                </DropdownMenuItem>
                                 <DropdownMenuItem asChild>
                                   <Link href={`/${wedding.id}/feed`} target="_blank">
                                     <LinkIcon className="mr-2 h-4 w-4" />
@@ -218,7 +249,7 @@ export default function WeddingsPage() {
                   </TableRow>
                 )) : (
                     <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center">
+                        <TableCell colSpan={6} className="h-24 text-center">
                             Nenhum casamento encontrado.
                         </TableCell>
                     </TableRow>

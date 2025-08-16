@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getWeddings, deletePhoto } from '@/lib/actions';
+import { getWeddings, deletePhoto, getPhotos } from '@/lib/actions';
 import type { Photo, Wedding } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AdminDashboardPage() {
   const { toast } = useToast();
@@ -25,15 +26,21 @@ export default function AdminDashboardPage() {
   useEffect(() => {
       const fetchInitialData = async () => {
         setIsLoading(true);
-        const fetchedWeddings = await getWeddings();
-        setWeddings(fetchedWeddings);
-        // Fetch all photos initially
-        const allFetchedPhotos = await Promise.all(fetchedWeddings.map(w => getPhotos(w.id)));
-        setAllPhotos(allFetchedPhotos.flat().sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-        setIsLoading(false);
+        try {
+          const fetchedWeddings = await getWeddings();
+          setWeddings(fetchedWeddings);
+          
+          const allFetchedPhotos = await Promise.all(fetchedWeddings.map(w => getPhotos(w.id)));
+          setAllPhotos(allFetchedPhotos.flat().sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        } catch(error) {
+            console.error("Failed to fetch dashboard data:", error);
+            toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível carregar os dados do painel.' });
+        } finally {
+            setIsLoading(false);
+        }
       };
       fetchInitialData();
-  }, []);
+  }, [toast]);
 
   const handleDeletePhoto = async (photoId: string, weddingId: string, imageUrl: string) => {
     const result = await deletePhoto(photoId, weddingId, imageUrl);
@@ -74,7 +81,18 @@ export default function AdminDashboardPage() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <p>Carregando fotos...</p>
+          <div className="space-y-4">
+            {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center space-x-4">
+                    <Skeleton className="h-16 w-16 rounded-md" />
+                    <div className="space-y-2 flex-1">
+                        <Skeleton className="h-4 w-1/4" />
+                        <Skeleton className="h-4 w-3/4" />
+                    </div>
+                     <Skeleton className="h-8 w-20" />
+                </div>
+            ))}
+          </div>
         ) : (
         <Table>
           <TableHeader>
