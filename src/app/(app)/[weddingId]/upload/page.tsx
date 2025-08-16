@@ -13,7 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import Image from 'next/image';
 import { createPhoto, getWedding, suggestCaptionAction } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, Upload, Camera, SlidersHorizontal, Film } from 'lucide-react';
+import { Sparkles, Upload, Camera, SlidersHorizontal, Film, Loader2 } from 'lucide-react';
 import { convertHeicToJpeg } from '@/lib/heic-converter';
 import { cn } from '@/lib/utils';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
@@ -28,6 +28,7 @@ const uploadSchema = z.object({
   file: z.custom<File>((v) => v instanceof File && v.size > 0, 'O arquivo é obrigatório.')
     .refine(
         (file) => {
+            if (!file || file.size === 0) return true; // Let required check handle this
             const isVideo = file.type.startsWith('video/');
             if (isVideo) return file.size <= MAX_VIDEO_SIZE;
             return file.size <= MAX_IMAGE_SIZE;
@@ -62,6 +63,7 @@ export default function UploadPage() {
   const [selectedFilter, setSelectedFilter] = useState('filter-none');
   const [wedding, setWedding] = useState<Wedding | null>(null);
   const [isLoadingWedding, setIsLoadingWedding] = useState(true);
+  const [isConverting, setIsConverting] = useState(false);
   
   const form = useForm<z.infer<typeof uploadSchema>>({
     resolver: zodResolver(uploadSchema),
@@ -83,16 +85,35 @@ export default function UploadPage() {
     : "image/png, image/jpeg, image/webp, image/heic, image/heif";
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    let file = event.target.files?.[0];
     if (file) {
-      form.setValue('file', file);
-      const isVideoFile = file.type.startsWith('video/');
-      setIsVideo(isVideoFile);
-      setPreview(URL.createObjectURL(file));
+      try {
+        const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+        
+        if (isHeic) {
+            setIsConverting(true);
+            setPreview(null);
+            file = await convertHeicToJpeg(file);
+        }
+
+        form.setValue('file', file);
+        const isVideoFile = file.type.startsWith('video/');
+        setIsVideo(isVideoFile);
+        setPreview(URL.createObjectURL(file));
+      } catch (error) {
+        console.error("Error processing file:", error);
+        const errorMessage = error instanceof Error ? error.message : 'Não foi possível processar seu arquivo. Tente um formato diferente.';
+        toast({ variant: 'destructive', title: 'Erro no processamento do arquivo', description: errorMessage });
+        setPreview(null);
+        setIsVideo(false);
+        form.resetField('file');
+      } finally {
+        setIsConverting(false);
+      }
     } else {
         setPreview(null);
         setIsVideo(false);
-        form.setValue('file', new File([], ""));
+        form.resetField('file');
     }
   };
 
@@ -123,18 +144,14 @@ export default function UploadPage() {
   
   const onSubmit = (values: z.infer<typeof uploadSchema>) => {
     startTransition(async () => {
-        let file = values.file;
+        const file = values.file;
         if (!file || !weddingId) return;
         
-        const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic');
-
         try {
-          const finalFile = isHeic ? await convertHeicToJpeg(file) : file;
-
           const formData = new FormData();
           formData.append('weddingId', weddingId);
           formData.append('author', guestName);
-          formData.append('file', finalFile);
+          formData.append('file', file);
           formData.append('caption', values.caption || '');
           formData.append('filter', selectedFilter);
 
@@ -195,6 +212,11 @@ export default function UploadPage() {
                             ) : (
                                 <Image src={preview} alt="Pré-visualização" fill className={cn('object-contain rounded-lg', selectedFilter)} />
                             )
+                        ) : isConverting ? (
+                            <div className="text-center text-muted-foreground flex flex-col items-center">
+                                <Loader2 className="h-12 w-12 mx-auto animate-spin" />
+                                <p className="mt-2">Convertendo imagem...</p>
+                           </div>
                         ) : (
                             <div className="text-center text-muted-foreground">
                                 <Camera className="h-12 w-12 mx-auto" />
@@ -207,6 +229,7 @@ export default function UploadPage() {
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                             accept={acceptedFileTypes}
                             onChange={handleFileChange}
+                            disabled={isConverting}
                         />
                      </div>
                     <FormMessage />
@@ -260,7 +283,7 @@ export default function UploadPage() {
                         variant="ghost"
                         size="sm"
                         onClick={handleSuggestCaption}
-                        disabled={!preview || isVideo || isSuggesting}
+                        disabled={!preview || isVideo || isSuggesting || isConverting}
                         className="text-accent-foreground"
                       >
                         <Sparkles className="mr-2 h-4 w-4" />
@@ -275,7 +298,7 @@ export default function UploadPage() {
                 )}
               />
 
-              <Button type="submit" className="w-full h-12 text-lg" disabled={isPending || !guestName || !preview}>
+              <Button type="submit" className="w-full h-12 text-lg" disabled={isPending || !guestName || !preview || isConverting}>
                 {isPending ? 'Enviando...' : 'Compartilhar Momento'}
                 <Upload className="ml-2 h-4 w-4" />
               </Button>
