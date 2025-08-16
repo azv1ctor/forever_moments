@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,14 @@ export default function AdminLoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
+  useEffect(() => {
+    // If user is already logged in, redirect to dashboard
+    if (sessionStorage.getItem('adminLoggedIn') === 'true') {
+      router.replace('/admin/dashboard');
+    }
+  }, [router]);
+
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -28,7 +36,7 @@ export default function AdminLoginPage() {
       });
       // In a real app, you'd use a more secure session management system
       sessionStorage.setItem('adminLoggedIn', 'true');
-      router.push('/admin/dashboard');
+      router.replace('/admin/dashboard');
     } else {
       toast({
         variant: 'destructive',

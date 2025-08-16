@@ -16,25 +16,38 @@ const navItems = [
   { href: '/admin/analytics', label: 'Análises', icon: BarChart3 },
 ];
 
-function AdminPagesLayout({ children }: { children: ReactNode }) {
+export default function AdminLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
     const pathname = usePathname();
     const router = useRouter();
     const [isVerified, setIsVerified] = useState(false);
 
+    const isLoginPage = pathname === '/admin';
+
     useEffect(() => {
         const adminLoggedIn = sessionStorage.getItem('adminLoggedIn');
-        if (adminLoggedIn !== 'true') {
+        if (!adminLoggedIn && !isLoginPage) {
             router.push('/admin');
-        } else {
+        } else if (adminLoggedIn && isLoginPage) {
+            router.push('/admin/dashboard');
+        }
+        else {
             setIsVerified(true);
         }
-    }, [router]);
+    }, [router, isLoginPage]);
 
     const handleLogout = () => {
         sessionStorage.removeItem('adminLoggedIn');
         router.push('/admin');
     };
     
+    if (isLoginPage) {
+        return <>{children}</>;
+    }
+
     if (!isVerified) {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-muted/40">
@@ -89,19 +102,4 @@ function AdminPagesLayout({ children }: { children: ReactNode }) {
         </div>
         </div>
     );
-}
-
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const pathname = usePathname();
-
-  // A página de login não deve ter o layout de navegação do admin
-  if (pathname === '/admin') {
-    return <>{children}</>;
-  }
-
-  return <AdminPagesLayout>{children}</AdminPagesLayout>;
 }
