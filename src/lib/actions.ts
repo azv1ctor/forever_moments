@@ -41,8 +41,6 @@ export async function getPhotos(weddingId: string): Promise<Photo[]> {
   try {
     const snapshot = await db.collection(PHOTOS_COLLECTION)
                               .where('weddingId', '==', weddingId)
-                              // A ordenação agora é feita diretamente na consulta ao banco de dados
-                              .orderBy('createdAt', 'desc') 
                               .get();
     if (snapshot.empty) {
       return [];
@@ -56,13 +54,12 @@ export async function getPhotos(weddingId: string): Promise<Photo[]> {
        } as Photo
     });
     
-    // A ordenação manual em JavaScript não é mais necessária
-    // photos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // A ordenação é feita aqui no código para evitar a necessidade de um índice composto no Firestore
+    photos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return photos;
   } catch (error) {
     console.error("Erro ao buscar fotos:", error);
-    // IMPORTANTE: Se você vir um erro sobre "índice" no seu terminal, veja as instruções abaixo.
     return [];
   }
 }
