@@ -115,12 +115,12 @@ const CreatePhotoSchema = z.object({
 export async function createPhoto(formData: FormData) {
     try {
         const data = {
-            weddingId: formData.get('weddingId'),
-            author: formData.get('author'),
-            caption: formData.get('caption'),
-            file: formData.get('file'),
-            aiHint: formData.get('aiHint'),
-            filter: formData.get('filter'),
+            weddingId: formData.get('weddingId') as string,
+            author: formData.get('author') as string,
+            caption: formData.get('caption') as string || undefined,
+            file: formData.get('file') as File,
+            aiHint: formData.get('aiHint') as string || undefined,
+            filter: formData.get('filter') as string || undefined,
         };
         const validated = CreatePhotoSchema.safeParse(data);
 
