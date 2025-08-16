@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
 import Image from 'next/image';
-import { Heart, MessageSquare } from 'lucide-react';
+import { Heart, MessageSquare, PlayCircle } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,6 +78,7 @@ export default function PhotoCard({ photo: initialPhoto }: { photo: Photo }) {
   }
   
   const comments = photo.comments || [];
+  const isVideo = photo.mediaType === 'video';
 
   return (
     <Card className="flex flex-col overflow-hidden rounded-lg shadow-lg transition-all hover:shadow-xl">
@@ -93,26 +95,45 @@ export default function PhotoCard({ photo: initialPhoto }: { photo: Photo }) {
       <Dialog>
         <DialogTrigger asChild>
           <CardContent className="p-0 grow cursor-pointer">
-            <div className="aspect-[4/5] relative w-full">
-              <Image
-                src={photo.imageUrl}
-                alt={photo.caption || 'Foto do casamento'}
-                fill
-                className={cn('object-cover', photo.filter)}
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                data-ai-hint={photo.aiHint}
-              />
+            <div className="aspect-[4/5] relative w-full bg-black">
+                {isVideo ? (
+                    <>
+                        <video 
+                            src={photo.imageUrl} 
+                            className="object-contain w-full h-full"
+                            playsInline 
+                            muted 
+                            loop
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20">
+                            <PlayCircle className="h-12 w-12 text-white/80" />
+                        </div>
+                    </>
+                ) : (
+                    <Image
+                        src={photo.imageUrl}
+                        alt={photo.caption || 'Foto do casamento'}
+                        fill
+                        className={cn('object-cover', photo.filter)}
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        data-ai-hint={photo.aiHint}
+                    />
+                )}
             </div>
           </CardContent>
         </DialogTrigger>
         <DialogContent className="p-0 max-w-3xl bg-transparent border-0">
-            <Image
-              src={photo.imageUrl}
-              alt={photo.caption || 'Foto do casamento'}
-              width={1024}
-              height={1280}
-              className={cn('object-contain w-full h-auto', photo.filter)}
-            />
+            {isVideo ? (
+                <video src={photo.imageUrl} controls autoPlay className="w-full h-auto max-h-[90vh] object-contain" />
+            ) : (
+                <Image
+                    src={photo.imageUrl}
+                    alt={photo.caption || 'Foto do casamento'}
+                    width={1024}
+                    height={1280}
+                    className={cn('object-contain w-full h-auto', photo.filter)}
+                />
+            )}
         </DialogContent>
       </Dialog>
       

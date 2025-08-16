@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +22,7 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { plans as planConfig } from '@/lib/plans';
-
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function WeddingsPage() {
   const { toast } = useToast();
@@ -51,7 +51,6 @@ export default function WeddingsPage() {
   }, []);
 
   useEffect(() => {
-      // Update price when plan changes
       if (plan) {
           setPrice(planConfig[plan].price.min);
       }
@@ -176,7 +175,19 @@ export default function WeddingsPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p>Carregando casamentos...</p>
+            <div className="space-y-2">
+                {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-center space-x-4 p-2">
+                        <Skeleton className="h-10 w-10 rounded-full" />
+                        <div className="space-y-2 flex-1">
+                            <Skeleton className="h-4 w-1/3" />
+                        </div>
+                         <Skeleton className="h-4 w-1/4 hidden sm:block" />
+                         <Skeleton className="h-6 w-16 hidden md:block" />
+                         <Skeleton className="h-8 w-20" />
+                    </div>
+                ))}
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -186,21 +197,21 @@ export default function WeddingsPage() {
                   <TableHead className="hidden md:table-cell">Plano</TableHead>
                   <TableHead className="hidden md:table-cell">Status</TableHead>
                   <TableHead>Link</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead><span className="sr-only">Ações</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {weddings.length > 0 ? weddings.map((wedding) => (
                   <TableRow key={wedding.id}>
                     <TableCell className="font-medium flex items-center gap-3">
-                      {wedding.logoUrl && <Image src={wedding.logoUrl} alt={`Logo ${wedding.coupleNames}`} width={40} height={40} className="rounded-full object-cover" />}
+                      {wedding.logoUrl ? <Image src={wedding.logoUrl} alt={`Logo ${wedding.coupleNames}`} width={40} height={40} className="rounded-full object-cover" /> : <div className="h-10 w-10 rounded-full bg-muted" />}
                       <span>{wedding.coupleNames}</span>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">{format(new Date(wedding.date), "dd/MM/yyyy")}</TableCell>
                     <TableCell className="hidden md:table-cell">{wedding.plan}</TableCell>
                      <TableCell className="hidden md:table-cell">
                         <Badge variant={wedding.status === 'Ativo' ? 'default' : 'secondary'}
-                           className={cn(wedding.status === 'Ativo' ? 'bg-green-600' : 'bg-gray-500')}>
+                           className={cn(wedding.status === 'Ativo' ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-500 hover:bg-gray-600', 'text-white')}>
                           {wedding.status}
                         </Badge>
                      </TableCell>
@@ -240,7 +251,7 @@ export default function WeddingsPage() {
                                 <DropdownMenuSeparator />
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive focus:bg-destructive/10">
                                             <Trash2 className="mr-2 h-4 w-4" />
                                             Excluir
                                         </DropdownMenuItem>
@@ -249,12 +260,12 @@ export default function WeddingsPage() {
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                Essa ação não pode ser desfeita. Isso excluirá permanentemente o casamento e todas as suas fotos.
+                                                Essa ação não pode ser desfeita. Isso excluirá permanentemente o casamento, sua logo e todas as suas fotos e vídeos.
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDelete(wedding.id)}>
+                                            <AlertDialogAction onClick={() => handleDelete(wedding.id)} className="bg-destructive hover:bg-destructive/90">
                                                 Sim, excluir casamento
                                             </AlertDialogAction>
                                         </AlertDialogFooter>
@@ -295,8 +306,8 @@ export default function WeddingsPage() {
                <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="logo" className="text-right">Logo</Label>
                 <div className="col-span-3 flex items-center gap-4">
-                    {logoPreview && <Image src={logoPreview} alt="Preview da logo" width={64} height={64} className="rounded-md object-cover" />}
-                    <Input id="logo" type="file" onChange={handleLogoChange} className="col-span-3" accept="image/png, image/jpeg, image/gif" />
+                    {logoPreview ? <Image src={logoPreview} alt="Preview da logo" width={64} height={64} className="rounded-md object-cover" /> : <div className="h-16 w-16 rounded-md bg-muted flex items-center justify-center text-muted-foreground"><Camera className="h-6 w-6"/></div>}
+                    <Input id="logo" type="file" onChange={handleLogoChange} className="col-span-3" accept="image/png, image/jpeg, image/gif, image/webp" />
                 </div>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">

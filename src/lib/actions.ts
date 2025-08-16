@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { Photo, Comment, Wedding, WeddingStatus, WeddingPlan, PlanDetails } from './types';
+import type { Photo, Comment, Wedding, WeddingStatus, WeddingPlan, PlanDetails, MediaType } from './types';
 import { suggestPhotoCaption } from '@/ai/flows/suggest-photo-caption';
 import { plans } from '@/lib/plans';
 import fs from 'fs/promises';
@@ -103,7 +103,7 @@ const CreatePhotoSchema = z.object({
   weddingId: z.string(),
   author: z.string(),
   caption: z.string().optional(),
-  photo: z.instanceof(File),
+  file: z.instanceof(File),
   aiHint: z.string().optional(),
   filter: z.string().optional(),
 });
@@ -117,14 +117,16 @@ export async function createPhoto(formData: FormData) {
             return { success: false, message: `Dados inválidos: ${validated.error.message}` };
         }
         
-        const { weddingId, author, caption, photo, aiHint, filter } = validated.data;
+        const { weddingId, author, caption, file, aiHint, filter } = validated.data;
         
         if (!author) {
             return { success: false, message: 'Usuário não identificado. Faça o login novamente.' };
         }
         
-        const publicUrl = await saveFile(photo, weddingId);
+        const publicUrl = await saveFile(file, weddingId);
         
+        const mediaType: MediaType = file.type.startsWith('video/') ? 'video' : 'image';
+
         const newPhotoData: Omit<Photo, 'id'> = {
             weddingId,
             author,
@@ -135,6 +137,7 @@ export async function createPhoto(formData: FormData) {
             likes: 0,
             comments: [],
             createdAt: new Date().toISOString(),
+            mediaType,
         };
 
         const docRef = await db.collection(PHOTOS_COLLECTION).add(newPhotoData);
@@ -151,7 +154,7 @@ export async function createPhoto(formData: FormData) {
     } catch (error) {
         console.error("[CREATE_PHOTO_ERROR]", error);
         const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
-        return { success: false, message: `Falha no upload da imagem: ${errorMessage}` };
+        return { success: false, message: `Falha no upload da mídia: ${errorMessage}` };
     }
 }
 
@@ -161,13 +164,13 @@ export async function deletePhoto(photoId: string, weddingId: string, imageUrl: 
     await db.collection(PHOTOS_COLLECTION).doc(photoId).delete();
 
     // Delete local file
-    const filePath = path.join(process.cwd(), 'public', imageUrl);
     try {
+        const filePath = path.join(process.cwd(), 'public', imageUrl);
         await fs.access(filePath);
         await fs.unlink(filePath);
     } catch (fsError: any) {
         if (fsError.code !== 'ENOENT') {
-            console.warn(`Could not delete file ${filePath}:`, fsError);
+            console.warn(`Could not delete file ${imageUrl}:`, fsError);
         }
     }
     
@@ -302,6 +305,15 @@ export async function updateWedding(id: string, formData: FormData) {
         const updateData: any = { ...weddingData };
         
         if (logo && logo.size > 0) {
+            const currentWedding = await getWedding(id);
+            if(currentWedding?.logoUrl) {
+                try {
+                    const oldLogoPath = path.join(process.cwd(), 'public', currentWedding.logoUrl);
+                    await fs.unlink(oldLogoPath);
+                } catch(e) {
+                    console.warn("Could not delete old logo", e);
+                }
+            }
             updateData.logoUrl = await saveFile(logo, 'logos');
         }
 
@@ -331,11 +343,25 @@ export async function deleteWedding(id: string) {
         const deletePromises = photosSnapshot.docs.map(doc => {
             const photo = doc.data() as Photo;
             // Also delete file from local storage
-            const filePath = path.join(process.cwd(), 'public', photo.imageUrl);
-            fs.unlink(filePath).catch(err => console.warn(`Could not delete file ${filePath}:`, err));
+            try {
+                const filePath = path.join(process.cwd(), 'public', photo.imageUrl);
+                fs.unlink(filePath).catch(err => console.warn(`Could not delete file ${filePath}:`, err));
+            } catch(e) {
+                console.warn("Error forming path for file deletion", e);
+            }
             return doc.ref.delete();
         });
         await Promise.all(deletePromises);
+        
+        const weddingToDelete = await getWedding(id);
+        if (weddingToDelete?.logoUrl) {
+            try {
+               const logoPath = path.join(process.cwd(), 'public', weddingToDelete.logoUrl);
+               await fs.unlink(logoPath);
+            } catch(e) {
+                console.warn("Could not delete logo on wedding deletion", e);
+            }
+        }
 
         // Delete the wedding document itself
         await db.collection(WEDDINGS_COLLECTION).doc(id).delete();

@@ -6,9 +6,11 @@ export interface Comment {
   createdAt: string;
 }
 
+export type MediaType = 'image' | 'video';
+
 export interface Photo {
   id: string;
-  weddingId: string; // <-- Adicionado para isolar fotos por casamento
+  weddingId: string;
   imageUrl: string;
   caption: string;
   author: string;
@@ -17,6 +19,7 @@ export interface Photo {
   createdAt: string;
   aiHint: string;
   filter?: string;
+  mediaType: MediaType;
 }
 
 export type WeddingPlan = 'Básico' | 'Premium' | 'Deluxe';
@@ -39,5 +42,5 @@ export interface Wedding {
     status: WeddingStatus;
     createdAt: string;
     logoUrl?: string;
-    planDetails: PlanDetails; // Snapshot of plan features at creation time
+    planDetails: PlanDetails;
 }

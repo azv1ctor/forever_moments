@@ -11,20 +11,36 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import Image from 'next/image';
-import { createPhoto, suggestCaptionAction } from '@/lib/actions';
+import { createPhoto, getWedding, suggestCaptionAction } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, Upload, Camera, SlidersHorizontal } from 'lucide-react';
+import { Sparkles, Upload, Camera, SlidersHorizontal, Film } from 'lucide-react';
 import { convertHeicToJpeg } from '@/lib/heic-converter';
 import { cn } from '@/lib/utils';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
+import type { Wedding } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
 
 const uploadSchema = z.object({
   caption: z.string().max(280, 'A legenda é muito longa.').optional(),
-  photo: z.custom<File>((v) => v instanceof File && v.size > 0, 'A imagem é obrigatória.')
-    .refine((file) => file.size <= 10000000, `O tamanho máximo do arquivo é 10MB.`),
+  file: z.custom<File>((v) => v instanceof File && v.size > 0, 'O arquivo é obrigatório.')
+    .refine(
+        (file) => {
+            const isVideo = file.type.startsWith('video/');
+            if (isVideo) return file.size <= MAX_VIDEO_SIZE;
+            return file.size <= MAX_IMAGE_SIZE;
+        },
+        (file) => ({
+            message: file.type.startsWith('video/')
+                ? `O tamanho máximo do vídeo é ${MAX_VIDEO_SIZE / 1024 / 1024}MB.`
+                : `O tamanho máximo da imagem é ${MAX_IMAGE_SIZE / 1024 / 1024}MB.`
+        })
+    ),
 });
 
-const filters = [
+const imageFilters = [
     { name: 'Normal', className: 'filter-none' },
     { name: 'Sépia', className: 'filter-sepia' },
     { name: 'P&B', className: 'filter-grayscale' },
@@ -41,8 +57,11 @@ export default function UploadPage() {
   const [isPending, startTransition] = useTransition();
   const [isSuggesting, startSuggestionTransition] = useTransition();
   const [preview, setPreview] = useState<string | null>(null);
+  const [isVideo, setIsVideo] = useState(false);
   const [guestName, setGuestName] = useState<string>('');
   const [selectedFilter, setSelectedFilter] = useState('filter-none');
+  const [wedding, setWedding] = useState<Wedding | null>(null);
+  const [isLoadingWedding, setIsLoadingWedding] = useState(true);
   
   const form = useForm<z.infer<typeof uploadSchema>>({
     resolver: zodResolver(uploadSchema),
@@ -52,46 +71,59 @@ export default function UploadPage() {
   useEffect(() => {
     if (weddingId) {
       setGuestName(localStorage.getItem(`guestName_${weddingId}`) || '');
+      getWedding(weddingId).then(data => {
+        setWedding(data);
+        setIsLoadingWedding(false);
+      });
     }
   }, [weddingId]);
+
+  const acceptedFileTypes = wedding?.planDetails.allowGifs
+    ? "image/png, image/jpeg, image/webp, image/heic, image/heif, image/gif, video/mp4, video/quicktime, video/webm"
+    : "image/png, image/jpeg, image/webp, image/heic, image/heif";
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      form.setValue('photo', file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      form.setValue('file', file);
+      const isVideoFile = file.type.startsWith('video/');
+      setIsVideo(isVideoFile);
+      setPreview(URL.createObjectURL(file));
     } else {
         setPreview(null);
-        form.setValue('photo', new File([], ""));
+        setIsVideo(false);
+        form.setValue('file', new File([], ""));
     }
   };
 
   const handleSuggestCaption = async () => {
-    if (!preview) {
+    if (!preview || isVideo) {
       toast({ variant: 'destructive', title: 'Por favor, selecione uma imagem primeiro.' });
       return;
     }
 
     startSuggestionTransition(async () => {
-      const formData = new FormData();
-      formData.append('photoDataUri', preview);
-      const result = await suggestCaptionAction(formData);
-      if (result.success && result.caption) {
-        form.setValue('caption', result.caption);
-        toast({ title: 'Sugestão de legenda aplicada!' });
-      } else {
-        toast({ variant: 'destructive', title: 'Falha na Sugestão', description: result.message });
-      }
+        const file = form.getValues('file');
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onloadend = async () => {
+            const base64data = reader.result as string;
+            const formData = new FormData();
+            formData.append('photoDataUri', base64data);
+            const result = await suggestCaptionAction(formData);
+            if (result.success && result.caption) {
+                form.setValue('caption', result.caption);
+                toast({ title: 'Sugestão de legenda aplicada!' });
+            } else {
+                toast({ variant: 'destructive', title: 'Falha na Sugestão', description: result.message });
+            }
+        };
     });
   };
   
   const onSubmit = (values: z.infer<typeof uploadSchema>) => {
     startTransition(async () => {
-        let file = values.photo;
+        let file = values.file;
         if (!file || !weddingId) return;
         
         const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic');
@@ -102,52 +134,78 @@ export default function UploadPage() {
           const formData = new FormData();
           formData.append('weddingId', weddingId);
           formData.append('author', guestName);
-          formData.append('photo', finalFile);
+          formData.append('file', finalFile);
           formData.append('caption', values.caption || '');
           formData.append('filter', selectedFilter);
 
           const result = await createPhoto(formData);
 
           if (result.success) {
-              toast({ title: 'Foto enviada!', description: 'Obrigado por compartilhar seu momento.' });
+              toast({ title: 'Mídia enviada!', description: 'Obrigado por compartilhar seu momento.' });
               router.push(`/${weddingId}/feed`);
           } else {
               toast({ variant: 'destructive', title: 'Falha no envio', description: result.message || 'Por favor, tente novamente.' });
           }
         } catch (error) {
            console.error("Error processing file:", error);
-           const errorMessage = error instanceof Error ? error.message : 'Não foi possível processar sua imagem. Tente um formato diferente.';
+           const errorMessage = error instanceof Error ? error.message : 'Não foi possível processar sua mídia. Tente um formato diferente.';
            toast({ variant: 'destructive', title: 'Erro no processamento do arquivo', description: errorMessage });
         }
     });
   };
   
+  if (isLoadingWedding) {
+      return (
+          <div className="container mx-auto max-w-2xl px-4 py-8">
+              <Card>
+                  <CardHeader>
+                      <Skeleton className="h-8 w-3/4" />
+                      <Skeleton className="h-4 w-1/2" />
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                      <Skeleton className="h-48 w-full" />
+                      <Skeleton className="h-24 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                  </CardContent>
+              </Card>
+          </div>
+      )
+  }
+
   return (
     <div className="container mx-auto max-w-2xl px-4 py-8">
       <Card>
         <CardHeader>
-          <CardTitle className="font-headline text-3xl">Compartilhe uma Foto</CardTitle>
-          <CardDescription>Envie uma foto do casamento para todos verem.</CardDescription>
+          <CardTitle className="font-headline text-3xl">Compartilhe um Momento</CardTitle>
+          <CardDescription>Envie uma foto ou vídeo do casamento para todos verem.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
                 control={form.control}
-                name="photo"
+                name="file"
                 render={() => (
                   <FormItem>
-                    <FormLabel>Foto</FormLabel>
-                     <div className="relative flex justify-center items-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted">
+                    <FormLabel>Foto ou Vídeo</FormLabel>
+                     <div className="relative flex justify-center items-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted">
                         {preview ? (
-                           <Image src={preview} alt="Pré-visualização" fill className={cn('object-contain rounded-lg', selectedFilter)} />
+                            isVideo ? (
+                                <video src={preview} controls className="h-full w-full object-contain rounded-lg" />
+                            ) : (
+                                <Image src={preview} alt="Pré-visualização" fill className={cn('object-contain rounded-lg', selectedFilter)} />
+                            )
                         ) : (
-                           <Camera className="h-12 w-12 text-muted-foreground" />
+                            <div className="text-center text-muted-foreground">
+                                <Camera className="h-12 w-12 mx-auto" />
+                                <p>Clique para enviar</p>
+                                <p className="text-xs mt-1">{wedding?.planDetails.allowGifs ? 'Imagens, GIFs ou Vídeos' : 'Apenas Imagens'}</p>
+                           </div>
                         )}
                         <input
                             type="file"
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            accept="image/png, image/jpeg, image/webp, image/heic, image/heif"
+                            accept={acceptedFileTypes}
                             onChange={handleFileChange}
                         />
                      </div>
@@ -156,7 +214,7 @@ export default function UploadPage() {
                 )}
               />
 
-              {preview && (
+              {preview && !isVideo && wedding?.planDetails.allowFilters && (
                  <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <SlidersHorizontal className="h-4 w-4" />
@@ -164,7 +222,7 @@ export default function UploadPage() {
                     </div>
                     <Carousel opts={{ align: "start", slidesToScroll: 'auto' }} className="w-full">
                         <CarouselContent>
-                            {filters.map((filter) => (
+                            {imageFilters.map((filter) => (
                                 <CarouselItem key={filter.name} className="basis-1/4 sm:basis-1/5">
                                     <div className="p-1">
                                         <button
@@ -202,7 +260,7 @@ export default function UploadPage() {
                         variant="ghost"
                         size="sm"
                         onClick={handleSuggestCaption}
-                        disabled={!preview || isSuggesting}
+                        disabled={!preview || isVideo || isSuggesting}
                         className="text-accent-foreground"
                       >
                         <Sparkles className="mr-2 h-4 w-4" />
@@ -210,7 +268,7 @@ export default function UploadPage() {
                       </Button>
                     </div>
                     <FormControl>
-                      <Textarea placeholder="Adicione uma legenda divertida à sua foto..." {...field} />
+                      <Textarea placeholder="Adicione uma legenda divertida à sua mídia..." {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -218,7 +276,7 @@ export default function UploadPage() {
               />
 
               <Button type="submit" className="w-full h-12 text-lg" disabled={isPending || !guestName || !preview}>
-                {isPending ? 'Enviando...' : 'Compartilhar Minha Foto'}
+                {isPending ? 'Enviando...' : 'Compartilhar Momento'}
                 <Upload className="ml-2 h-4 w-4" />
               </Button>
             </form>
