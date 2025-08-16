@@ -143,7 +143,7 @@ export async function createPhoto(formData: FormData) {
         const docRef = await db.collection(PHOTOS_COLLECTION).add(newPhotoData);
         
         revalidatePath(`/${weddingId}/feed`);
-        revalidatePath('/admin/dashboard');
+        revalidatePath(`/${weddingId}/tv`);
         
         const newPhoto: Photo = {
             id: docRef.id,
