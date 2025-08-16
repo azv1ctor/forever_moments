@@ -1,3 +1,4 @@
+
 export interface Comment {
   id: string;
   author: string;
@@ -19,7 +20,15 @@ export interface Photo {
 }
 
 export type WeddingPlan = 'Básico' | 'Premium' | 'Deluxe';
-export type WeddingStatus = 'Ativo' | 'Inativo' | 'Concluído' | 'Pendente';
+export type WeddingStatus = 'Ativo' | 'Inativo';
+
+export interface PlanDetails {
+    allowFilters: boolean;
+    allowGifs: boolean;
+    tvCarousel: boolean;
+    allowDownload: boolean;
+    accessDurationDays: number; // 0 for unlimited
+}
 
 export interface Wedding {
     id: string;
@@ -29,5 +38,6 @@ export interface Wedding {
     price: number;
     status: WeddingStatus;
     createdAt: string;
-    logoUrl?: string; // <-- Adicionado para logo personalizada
+    logoUrl?: string;
+    planDetails: PlanDetails; // Snapshot of plan features at creation time
 }

@@ -1,3 +1,4 @@
+
 // /src/lib/actions.ts
 'use server';
 
@@ -5,8 +6,9 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { Photo, Comment, Wedding, WeddingStatus, WeddingPlan } from './types';
+import type { Photo, Comment, Wedding, WeddingStatus, WeddingPlan, PlanDetails } from './types';
 import { suggestPhotoCaption } from '@/ai/flows/suggest-photo-caption';
+import { plans } from '@/lib/plans';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -233,7 +235,7 @@ const WeddingSchema = z.object({
   date: z.string().min(1, "A data do evento é obrigatória."),
   plan: z.enum(['Básico', 'Premium', 'Deluxe']),
   price: z.coerce.number().min(0, "O preço deve ser um valor positivo."),
-  status: z.enum(['Ativo', 'Inativo', 'Concluído', 'Pendente']),
+  status: z.enum(['Ativo', 'Inativo']),
   logo: z.instanceof(File).optional().nullable(),
 });
 
@@ -253,14 +255,22 @@ export async function createWedding(formData: FormData) {
             logoUrl = await saveFile(logo, 'logos');
         }
 
+        const planDetails: PlanDetails = plans[weddingData.plan].features;
+
         const newWeddingData = {
             ...weddingData,
             logoUrl: logoUrl || undefined,
             createdAt: new Date().toISOString(),
+            planDetails,
         };
 
         const docRef = await db.collection(WEDDINGS_COLLECTION).add(newWeddingData);
-        const newWedding: Wedding = { id: docRef.id, ...newWeddingData, plan: newWeddingData.plan as WeddingPlan, status: newWeddingData.status as WeddingStatus };
+        const newWedding: Wedding = { 
+            id: docRef.id, 
+            ...newWeddingData, 
+            plan: newWeddingData.plan as WeddingPlan, 
+            status: newWeddingData.status as WeddingStatus 
+        };
 
         revalidatePath('/admin/weddings');
         return { success: true, wedding: newWedding };
@@ -275,7 +285,14 @@ export async function updateWedding(id: string, formData: FormData) {
     try {
         const data = Object.fromEntries(formData);
         const parsedData = { ...data, logo: data.logo instanceof File ? data.logo : null }
-        const validated = WeddingSchema.safeParse(parsedData);
+        // Use a partial schema for updates, as not all fields are always present
+         const UpdateWeddingSchema = WeddingSchema.partial().extend({
+             status: z.enum(['Ativo', 'Inativo']).optional(),
+             coupleNames: z.string().min(3, "Nomes dos noivos são obrigatórios.").optional(),
+             date: z.string().min(1, "A data do evento é obrigatória.").optional(),
+         });
+        const validated = UpdateWeddingSchema.safeParse(parsedData);
+
 
         if (!validated.success) {
             return { success: false, message: `Dados inválidos: ${validated.error.message}` };
@@ -288,12 +305,17 @@ export async function updateWedding(id: string, formData: FormData) {
             updateData.logoUrl = await saveFile(logo, 'logos');
         }
 
+        if (updateData.plan) {
+            updateData.planDetails = plans[updateData.plan].features;
+        }
+
         await db.collection(WEDDINGS_COLLECTION).doc(id).update(updateData);
 
         const doc = await db.collection(WEDDINGS_COLLECTION).doc(id).get();
         const updatedWedding = { id: doc.id, ...doc.data() } as Wedding;
 
         revalidatePath('/admin/weddings');
+        revalidatePath(`/${id}`);
         return { success: true, wedding: updatedWedding };
     } catch (error) {
         console.error("[UPDATE_WEDDING_ERROR]", error);

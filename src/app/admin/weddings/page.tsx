@@ -1,3 +1,4 @@
+
 // src/app/admin/weddings/page.tsx
 'use client';
 
@@ -20,12 +21,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { plans as planConfig } from '@/lib/plans';
 
-const plans: Record<WeddingPlan, { name: WeddingPlan; min: number; max: number }> = {
-  'Básico': { name: 'Básico', min: 1000, max: 1500 },
-  'Premium': { name: 'Premium', min: 2000, max: 3000 },
-  'Deluxe': { name: 'Deluxe', min: 4000, max: 5000 },
-};
 
 export default function WeddingsPage() {
   const { toast } = useToast();
@@ -39,7 +36,7 @@ export default function WeddingsPage() {
   const [coupleNames, setCoupleNames] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [plan, setPlan] = useState<WeddingPlan>('Básico');
-  const [price, setPrice] = useState<number>(plans['Básico'].min);
+  const [price, setPrice] = useState<number>(planConfig['Básico'].price.min);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
@@ -53,11 +50,18 @@ export default function WeddingsPage() {
     fetchWeddings();
   }, []);
 
+  useEffect(() => {
+      // Update price when plan changes
+      if (plan) {
+          setPrice(planConfig[plan].price.min);
+      }
+  }, [plan]);
+
   const resetForm = () => {
     setCoupleNames('');
     setEventDate('');
     setPlan('Básico');
-    setPrice(plans['Básico'].min);
+    setPrice(planConfig['Básico'].price.min);
     setEditingWedding(null);
     setLogoFile(null);
     setLogoPreview(null);
@@ -101,11 +105,6 @@ export default function WeddingsPage() {
   const handleToggleStatus = async (wedding: Wedding) => {
       const newStatus: WeddingStatus = wedding.status === 'Ativo' ? 'Inativo' : 'Ativo';
       const formData = new FormData();
-      // We need to pass all fields to satisfy the validation schema
-      formData.append('coupleNames', wedding.coupleNames);
-      formData.append('date', wedding.date);
-      formData.append('plan', wedding.plan);
-      formData.append('price', String(wedding.price));
       formData.append('status', newStatus);
 
       const result = await updateWedding(wedding.id, formData);
@@ -310,15 +309,12 @@ export default function WeddingsPage() {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="plan" className="text-right">Plano</Label>
-                <Select value={plan} onValueChange={(value: WeddingPlan) => {
-                  setPlan(value);
-                  setPrice(plans[value].min);
-                }}>
+                <Select value={plan} onValueChange={(value: WeddingPlan) => setPlan(value)}>
                   <SelectTrigger className="col-span-3">
                     <SelectValue placeholder="Selecione um plano" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.values(plans).map(p => (
+                    {Object.values(planConfig).map(p => (
                       <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -332,8 +328,8 @@ export default function WeddingsPage() {
                   value={price}
                   onChange={(e) => setPrice(Number(e.target.value))}
                   className="col-span-3"
-                  min={plans[plan].min}
-                  max={plans[plan].max}
+                  min={planConfig[plan].price.min}
+                  max={planConfig[plan].price.max}
                   step="100"
                   required
                 />
