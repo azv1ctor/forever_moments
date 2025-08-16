@@ -30,6 +30,18 @@ function TvCarousel({ initialPhotos, wedding }: { initialPhotos: Photo[], weddin
 
         return () => clearInterval(interval);
     }, [wedding.id, photos.length]);
+
+    if (photos.length === 0) {
+        return (
+             <div className="h-screen w-screen flex flex-col items-center justify-center text-center bg-black text-white p-4">
+                {wedding.logoUrl && (
+                     <Image src={wedding.logoUrl} alt={`Logo ${wedding.coupleNames}`} width={100} height={100} className="rounded-full object-cover mb-6" />
+                )}
+                <h1 className="text-4xl font-headline mb-4">Aguardando as primeiras fotos...</h1>
+                <p className="text-xl text-white/70">As fotos enviadas pelos convidados aparecerão aqui em tempo real!</p>
+            </div>
+        )
+    }
     
     return (
         <div className="relative h-screen w-screen overflow-hidden bg-black">
@@ -133,16 +145,14 @@ export default function TvPage() {
         );
     }
 
-    if (!initialData || initialData.photos.length === 0) {
+    if (!initialData) {
+        // This case would be for a general error, handled by notFound() usually
         return (
-            <div className="h-screen w-screen flex flex-col items-center justify-center text-center bg-black text-white p-4">
-                {initialData?.wedding.logoUrl && (
-                     <Image src={initialData.wedding.logoUrl} alt={`Logo ${initialData.wedding.coupleNames}`} width={100} height={100} className="rounded-full object-cover mb-6" />
-                )}
-                <h1 className="text-4xl font-headline mb-4">Aguardando as primeiras fotos...</h1>
-                <p className="text-xl text-white/70">As fotos enviadas pelos convidados aparecerão aqui em tempo real!</p>
+             <div className="h-screen w-screen flex flex-col items-center justify-center text-center bg-black text-white p-4">
+                <h1 className="text-4xl font-headline mb-4">Erro ao Carregar</h1>
+                <p className="text-xl text-white/70">Não foi possível carregar os dados do evento.</p>
             </div>
-        );
+        )
     }
     
     return <TvCarousel initialPhotos={initialData.photos} wedding={initialData.wedding} />;
