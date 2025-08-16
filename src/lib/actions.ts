@@ -41,6 +41,8 @@ export async function getPhotos(weddingId: string): Promise<Photo[]> {
   try {
     const snapshot = await db.collection(PHOTOS_COLLECTION)
                               .where('weddingId', '==', weddingId)
+                              // A ordenação agora é feita diretamente na consulta ao banco de dados
+                              .orderBy('createdAt', 'desc') 
                               .get();
     if (snapshot.empty) {
       return [];
@@ -54,12 +56,10 @@ export async function getPhotos(weddingId: string): Promise<Photo[]> {
        } as Photo
     });
     
-    // A ordenação é feita aqui no código para evitar a necessidade de um índice composto no Firestore
-    photos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
     return photos;
   } catch (error) {
     console.error("Erro ao buscar fotos:", error);
+    // IMPORTANTE: Se você vir um erro sobre "índice" no seu terminal, crie o índice no Console do Firebase.
     return [];
   }
 }
@@ -287,8 +287,8 @@ export async function updateWedding(id: string, formData: FormData) {
     try {
         const data = Object.fromEntries(formData);
         const parsedData = { ...data, logo: data.logo instanceof File ? data.logo : null }
-        // Use a partial schema for updates, as not all fields are always present
-         const UpdateWeddingSchema = WeddingSchema.partial().extend({
+        
+        const UpdateWeddingSchema = WeddingSchema.partial().extend({
              status: z.enum(['Ativo', 'Inativo']).optional(),
              coupleNames: z.string().min(3, "Nomes dos noivos são obrigatórios.").optional(),
              date: z.string().min(1, "A data do evento é obrigatória.").optional(),
@@ -301,7 +301,7 @@ export async function updateWedding(id: string, formData: FormData) {
         }
         const { logo, ...weddingData } = validated.data;
         
-        const updateData: any = { ...weddingData };
+        const updateData = { ...weddingData };
         
         if (logo && logo.size > 0) {
             const currentWedding = await getWedding(id);
@@ -313,11 +313,12 @@ export async function updateWedding(id: string, formData: FormData) {
                     console.warn("Could not delete old logo", e);
                 }
             }
-            updateData.logoUrl = await saveFile(logo, 'logos');
+            (updateData as any).logoUrl = await saveFile(logo, 'logos');
         }
 
         if (updateData.plan) {
-            updateData.planDetails = plans[updateData.plan].features;
+            const planKey = updateData.plan as WeddingPlan;
+            (updateData as any).planDetails = plans[planKey].features;
         }
 
         await db.collection(WEDDINGS_COLLECTION).doc(id).update(updateData);
