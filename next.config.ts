@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {},
+  serverActions: {
+    bodySizeLimit: '60mb',
+  },
 };
 
 export default nextConfig;
