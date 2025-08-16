@@ -92,12 +92,14 @@ export default function TVPage() {
     const [wedding, setWedding] = useState<Wedding | null>(null);
     const [photos, setPhotos] = useState<Photo[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!weddingId) return;
 
         const fetchData = async () => {
             setIsLoading(true);
+            setError(null);
             try {
                 const [weddingData, photoData] = await Promise.all([
                     getWedding(weddingId),
@@ -116,7 +118,7 @@ export default function TVPage() {
 
             } catch (error) {
                 console.error("Failed to fetch initial data for TV mode:", error);
-                // Optionally show an error state
+                setError("Não foi possível carregar os dados para o modo TV.");
             } finally {
                 setIsLoading(false);
             }
@@ -138,10 +140,21 @@ export default function TVPage() {
         );
     }
     
+    if (error) {
+         return (
+             <div className="h-screen w-screen bg-black flex items-center justify-center p-8 text-center">
+                 <div className="text-destructive-foreground bg-destructive p-8 rounded-lg">
+                     <h2 className="text-2xl font-bold">Ocorreu um erro</h2>
+                     <p>{error}</p>
+                 </div>
+             </div>
+         );
+    }
+    
     if (!wedding) {
+        // This case should be handled by notFound(), but as a fallback.
         return notFound();
     }
-
 
     return (
         <div className="h-screen w-screen bg-black text-white font-body flex flex-col">
