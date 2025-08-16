@@ -1,4 +1,3 @@
-
 // /src/lib/actions.ts
 'use server';
 
@@ -107,20 +106,24 @@ const CreatePhotoSchema = z.object({
   weddingId: z.string(),
   author: z.string(),
   caption: z.string().optional(),
-  file: z.instanceof(File),
   aiHint: z.string().optional(),
   filter: z.string().optional(),
 });
 
 export async function createPhoto(formData: FormData) {
     try {
+        const file = formData.get('file') as File;
+        
+        if (!file || file.size === 0) {
+            return { success: false, message: 'Nenhum arquivo enviado.' };
+        }
+
         const data = {
             weddingId: formData.get('weddingId') as string,
             author: formData.get('author') as string,
-            caption: formData.get('caption') as string || undefined,
-            file: formData.get('file') as File,
-            aiHint: formData.get('aiHint') as string || undefined,
-            filter: formData.get('filter') as string || undefined,
+            caption: (formData.get('caption') as string) || undefined,
+            aiHint: (formData.get('aiHint') as string) || undefined,
+            filter: (formData.get('filter') as string) || undefined,
         };
         const validated = CreatePhotoSchema.safeParse(data);
 
@@ -129,7 +132,7 @@ export async function createPhoto(formData: FormData) {
             return { success: false, message: `Dados inválidos: ${validated.error.message}` };
         }
         
-        const { weddingId, author, caption, file, aiHint, filter } = validated.data;
+        const { weddingId, author, caption, aiHint, filter } = validated.data;
         
         if (!author) {
             return { success: false, message: 'Usuário não identificado. Faça o login novamente.' };
@@ -169,6 +172,7 @@ export async function createPhoto(formData: FormData) {
         return { success: false, message: `Falha no upload da mídia: ${errorMessage}` };
     }
 }
+
 
 export async function deletePhoto(photoId: string, weddingId: string, imageUrl: string) {
   try {
