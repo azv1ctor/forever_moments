@@ -1,3 +1,4 @@
+
 // /src/lib/actions.ts
 'use server';
 
@@ -102,39 +103,24 @@ export async function addComment(photoId: string, weddingId: string, author: str
   }
 }
 
-const CreatePhotoSchema = z.object({
-  weddingId: z.string(),
-  author: z.string(),
-  caption: z.string().optional(),
-  filter: z.string().optional(),
-});
-
 export async function createPhoto(formData: FormData) {
     try {
-        const file = formData.get('file') as File;
-        
-        if (!file || file.size === 0) {
-            return { success: false, message: 'Nenhum arquivo enviado.' };
+        const file = formData.get('file');
+        const weddingId = formData.get('weddingId');
+        const author = formData.get('author');
+        const caption = formData.get('caption');
+        const filter = formData.get('filter');
+
+        if (!(file instanceof File) || file.size === 0) {
+            return { success: false, message: 'Arquivo inválido ou não enviado.' };
         }
 
-        const data = {
-            weddingId: formData.get('weddingId'),
-            author: formData.get('author'),
-            caption: formData.get('caption'),
-            filter: formData.get('filter'),
-        };
-
-        const validated = CreatePhotoSchema.safeParse(data);
-
-        if (!validated.success) {
-            console.error("Validation failed:", validated.error.flatten());
-            return { success: false, message: `Dados inválidos: ${validated.error.message}` };
+        if (!weddingId || typeof weddingId !== 'string') {
+            return { success: false, message: 'ID do casamento é inválido.' };
         }
         
-        const { weddingId, author, caption, filter } = validated.data;
-        
-        if (!author) {
-            return { success: false, message: 'Usuário não identificado. Faça o login novamente.' };
+        if (!author || typeof author !== 'string') {
+            return { success: false, message: 'Autor não identificado.' };
         }
         
         const publicUrl = await saveFile(file, weddingId);
@@ -144,9 +130,9 @@ export async function createPhoto(formData: FormData) {
         const newPhotoData: Omit<Photo, 'id'> = {
             weddingId,
             author,
-            caption: caption || '',
+            caption: typeof caption === 'string' ? caption : '',
             imageUrl: publicUrl,
-            filter: filter || 'filter-none',
+            filter: typeof filter === 'string' ? filter : 'filter-none',
             likes: 0,
             comments: [],
             createdAt: new Date().toISOString(),
@@ -441,5 +427,3 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
         throw new Error("Could not retrieve analytics data.");
     }
 }
-
-    
