@@ -14,11 +14,11 @@ import Image from 'next/image';
 import { createPhoto, getWedding, suggestCaptionAction } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles, Upload, Camera, SlidersHorizontal, Loader2 } from 'lucide-react';
-import { convertHeicToJpeg } from '@/lib/heic-converter';
 import { cn } from '@/lib/utils';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import type { Wedding } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import heic2any from 'heic2any';
 
 const MAX_IMAGE_SIZE_MB = 10;
 const MAX_VIDEO_SIZE_MB = 50;
@@ -88,34 +88,52 @@ export default function UploadPage() {
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     let file = event.target.files?.[0];
-    if (file) {
-      try {
-        const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
-        
-        if (isHeic) {
-            setIsConverting(true);
-            setPreview(null);
-            file = await convertHeicToJpeg(file);
-        }
+    if (!file) {
+      setPreview(null);
+      setIsVideo(false);
+      form.resetField('file');
+      return;
+    }
 
-        form.setValue('file', file, { shouldValidate: true });
-        const isVideoFile = file.type.startsWith('video/');
-        setIsVideo(isVideoFile);
-        setPreview(URL.createObjectURL(file));
-      } catch (error) {
-        console.error("Error processing file:", error);
-        const errorMessage = error instanceof Error ? error.message : 'Não foi possível processar seu arquivo. Tente um formato diferente.';
-        toast({ variant: 'destructive', title: 'Erro no processamento do arquivo', description: errorMessage });
-        setPreview(null);
-        setIsVideo(false);
-        form.resetField('file');
-      } finally {
-        setIsConverting(false);
+    setIsConverting(true);
+    toast({ title: 'Processando arquivo...', description: 'Aguarde um instante.' });
+
+    try {
+      const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+      
+      if (isHeic) {
+        console.log("Arquivo HEIC detectado. Iniciando conversão no cliente...");
+        const convertedBlob = await heic2any({
+          blob: file,
+          toType: "image/jpeg",
+          quality: 0.9,
+        }) as Blob;
+        
+        file = new File([convertedBlob], file.name.replace(/\.[^/.]+$/, ".jpeg"), {
+          type: "image/jpeg",
+        });
+        console.log("Conversão para JPEG concluída com sucesso!");
+        toast({ title: 'Imagem convertida!', description: 'Sua imagem HEIC foi convertida para JPEG.' });
       }
-    } else {
-        setPreview(null);
-        setIsVideo(false);
-        form.resetField('file');
+
+      form.setValue('file', file, { shouldValidate: true });
+      const isVideoFile = file.type.startsWith('video/');
+      setIsVideo(isVideoFile);
+      
+      if (preview) {
+        URL.revokeObjectURL(preview);
+      }
+      setPreview(URL.createObjectURL(file));
+
+    } catch (error) {
+      console.error("Erro ao processar arquivo:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Não foi possível processar seu arquivo. Tente um formato diferente.';
+      toast({ variant: 'destructive', title: 'Erro no processamento', description: errorMessage });
+      setPreview(null);
+      setIsVideo(false);
+      form.resetField('file');
+    } finally {
+      setIsConverting(false);
     }
   };
 
@@ -148,6 +166,9 @@ export default function UploadPage() {
     startTransition(async () => {
         const file = values.file;
         if (!file || !weddingId) return;
+
+        // Log para depuração do tamanho do arquivo
+        console.log(`%cTENTANDO ENVIAR ARQUIVO: Tamanho: ${(file.size / 1024 / 1024).toFixed(2)} MB, Tipo: ${file.type}`, 'color: blue; font-weight: bold;');
         
         try {
           const formData = new FormData();
@@ -166,9 +187,9 @@ export default function UploadPage() {
               toast({ variant: 'destructive', title: 'Falha no envio', description: result.message || 'Por favor, tente novamente.' });
           }
         } catch (error) {
-           console.error("Error processing file:", error);
+           console.error("Error submitting form:", error);
            const errorMessage = error instanceof Error ? error.message : 'Não foi possível processar sua mídia. Tente um formato diferente.';
-           toast({ variant: 'destructive', title: 'Erro no processamento do arquivo', description: errorMessage });
+           toast({ variant: 'destructive', title: 'Erro no Envio', description: errorMessage });
         }
     });
   };
@@ -182,7 +203,7 @@ export default function UploadPage() {
                       <Skeleton className="h-4 w-1/2" />
                   </CardHeader>
                   <CardContent className="space-y-6">
-                      <Skeleton className="h-48 w-full" />
+                      <Skeleton className="h-64 w-full" />
                       <Skeleton className="h-24 w-full" />
                       <Skeleton className="h-12 w-full" />
                   </CardContent>
@@ -207,70 +228,71 @@ export default function UploadPage() {
                 render={() => (
                   <FormItem>
                     <FormLabel>Foto ou Vídeo</FormLabel>
-                     <div className="relative flex justify-center items-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted">
-                        {preview ? (
-                            isVideo ? (
-                                <video src={preview} controls className="h-full w-full object-contain rounded-lg" />
-                            ) : (
-                                <Image src={preview} alt="Pré-visualização" fill className={cn('object-contain rounded-lg', selectedFilter)} />
-                            )
-                        ) : isConverting ? (
-                            <div className="text-center text-muted-foreground flex flex-col items-center">
-                                <Loader2 className="h-12 w-12 mx-auto animate-spin" />
-                                <p className="mt-2">Convertendo imagem...</p>
-                           </div>
-                        ) : (
-                            <div className="text-center text-muted-foreground">
-                                <Camera className="h-12 w-12 mx-auto" />
-                                <p>Clique para enviar</p>
-                                <p className="text-xs mt-1">{wedding?.planDetails.allowGifs ? 'Imagens, GIFs ou Vídeos' : 'Apenas Imagens'}</p>
-                           </div>
-                        )}
-                        <input
-                            type="file"
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            accept={acceptedFileTypes}
-                            onChange={handleFileChange}
-                            disabled={isConverting}
-                        />
-                     </div>
+                      <div className="relative flex justify-center items-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted">
+                          {preview ? (
+                              isVideo ? (
+                                  <video src={preview} controls className="h-full w-full object-contain rounded-lg" />
+                              ) : (
+                                  <Image src={preview} alt="Pré-visualização" fill className={cn('object-contain rounded-lg', selectedFilter)} />
+                              )
+                          ) : isConverting ? (
+                              <div className="text-center text-muted-foreground flex flex-col items-center">
+                                  <Loader2 className="h-12 w-12 mx-auto animate-spin" />
+                                  <p className="mt-2">Convertendo imagem...</p>
+                              </div>
+                          ) : (
+                              <div className="text-center text-muted-foreground">
+                                  <Camera className="h-12 w-12 mx-auto" />
+                                  <p>Clique para enviar</p>
+                                  <p className="text-xs mt-1">{wedding?.planDetails.allowGifs ? 'Imagens, GIFs ou Vídeos' : 'Apenas Imagens'}</p>
+                              </div>
+                          )}
+                          <input
+                              id="file-upload"
+                              type="file"
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                              accept={acceptedFileTypes}
+                              onChange={handleFileChange}
+                              disabled={isConverting}
+                          />
+                      </div>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
               {preview && !isVideo && wedding?.planDetails.allowFilters && (
-                 <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <SlidersHorizontal className="h-4 w-4" />
-                        <span>Filtros</span>
-                    </div>
-                    <Carousel opts={{ align: "start", slidesToScroll: 'auto' }} className="w-full">
-                        <CarouselContent>
-                            {imageFilters.map((filter) => (
-                                <CarouselItem key={filter.name} className="basis-1/4 sm:basis-1/5">
-                                    <div className="p-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedFilter(filter.className)}
-                                            className={cn(
-                                                'w-full flex flex-col items-center gap-1.5 rounded-lg p-2 border-2',
-                                                selectedFilter === filter.className ? 'border-primary' : 'border-transparent'
-                                            )}
-                                        >
-                                            <div className="w-16 h-16 rounded-md overflow-hidden relative">
-                                                <Image src={preview} alt={filter.name} fill className={cn('object-cover', filter.className)} />
-                                            </div>
-                                            <span className="text-xs font-medium">{filter.name}</span>
-                                        </button>
-                                    </div>
-                                </CarouselItem>
-                            ))}
-                        </CarouselContent>
-                        <CarouselPrevious className="hidden sm:flex" />
-                        <CarouselNext className="hidden sm:flex" />
-                    </Carousel>
-                 </div>
+                   <div className="space-y-2">
+                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                         <SlidersHorizontal className="h-4 w-4" />
+                         <span>Filtros</span>
+                     </div>
+                     <Carousel opts={{ align: "start", slidesToScroll: 'auto' }} className="w-full">
+                         <CarouselContent>
+                             {imageFilters.map((filter) => (
+                                 <CarouselItem key={filter.name} className="basis-1/4 sm:basis-1/5">
+                                     <div className="p-1">
+                                         <button
+                                             type="button"
+                                             onClick={() => setSelectedFilter(filter.className)}
+                                             className={cn(
+                                                 'w-full flex flex-col items-center gap-1.5 rounded-lg p-2 border-2',
+                                                 selectedFilter === filter.className ? 'border-primary' : 'border-transparent'
+                                             )}
+                                         >
+                                             <div className="w-16 h-16 rounded-md overflow-hidden relative">
+                                                 <Image src={preview} alt={filter.name} fill className={cn('object-cover', filter.className)} />
+                                             </div>
+                                             <span className="text-xs font-medium">{filter.name}</span>
+                                         </button>
+                                     </div>
+                                 </CarouselItem>
+                             ))}
+                         </CarouselContent>
+                         <CarouselPrevious className="hidden sm:flex" />
+                         <CarouselNext className="hidden sm:flex" />
+                     </Carousel>
+                   </div>
               )}
 
               <FormField
@@ -311,3 +333,4 @@ export default function UploadPage() {
     </div>
   );
 }
+
