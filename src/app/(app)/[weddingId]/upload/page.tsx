@@ -95,46 +95,44 @@ export default function UploadPage() {
       return;
     }
 
-    setIsConverting(true);
-    toast({ title: 'Processando arquivo...', description: 'Aguarde um instante.' });
+    const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+    
+    if (isHeic) {
+      setIsConverting(true);
+      toast({ title: 'Processando imagem...', description: 'Aguarde um instante.' });
+      console.log("Arquivo HEIC detectado. Iniciando conversão no cliente...");
 
-    try {
-      const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
-      
-      if (isHeic) {
-        console.log("Arquivo HEIC detectado. Iniciando conversão no cliente...");
+      try {
         const convertedBlob = await heic2any({
           blob: file,
           toType: "image/jpeg",
-          quality: 0.9,
+          quality: 0.7, // Compressão mais agressiva para reduzir o tamanho
         }) as Blob;
         
         file = new File([convertedBlob], file.name.replace(/\.[^/.]+$/, ".jpeg"), {
           type: "image/jpeg",
         });
+
         console.log("Conversão para JPEG concluída com sucesso!");
         toast({ title: 'Imagem convertida!', description: 'Sua imagem HEIC foi convertida para JPEG.' });
+      } catch (error) {
+        console.error("Erro ao converter HEIC:", error);
+        toast({ variant: 'destructive', title: 'Erro de Conversão', description: 'Não foi possível converter a imagem HEIC.' });
+        setIsConverting(false);
+        return;
+      } finally {
+        setIsConverting(false);
       }
-
-      form.setValue('file', file, { shouldValidate: true });
-      const isVideoFile = file.type.startsWith('video/');
-      setIsVideo(isVideoFile);
-      
-      if (preview) {
-        URL.revokeObjectURL(preview);
-      }
-      setPreview(URL.createObjectURL(file));
-
-    } catch (error) {
-      console.error("Erro ao processar arquivo:", error);
-      const errorMessage = error instanceof Error ? error.message : 'Não foi possível processar seu arquivo. Tente um formato diferente.';
-      toast({ variant: 'destructive', title: 'Erro no processamento', description: errorMessage });
-      setPreview(null);
-      setIsVideo(false);
-      form.resetField('file');
-    } finally {
-      setIsConverting(false);
     }
+
+    form.setValue('file', file, { shouldValidate: true });
+    const isVideoFile = file.type.startsWith('video/');
+    setIsVideo(isVideoFile);
+    
+    if (preview) {
+      URL.revokeObjectURL(preview);
+    }
+    setPreview(URL.createObjectURL(file));
   };
 
   const handleSuggestCaption = async () => {
@@ -167,7 +165,6 @@ export default function UploadPage() {
         const file = values.file;
         if (!file || !weddingId) return;
 
-        // Log para depuração do tamanho do arquivo
         console.log(`%cTENTANDO ENVIAR ARQUIVO: Tamanho: ${(file.size / 1024 / 1024).toFixed(2)} MB, Tipo: ${file.type}`, 'color: blue; font-weight: bold;');
         
         try {
@@ -333,4 +330,3 @@ export default function UploadPage() {
     </div>
   );
 }
-
