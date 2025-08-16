@@ -17,4 +17,15 @@ export interface Photo {
   filter?: string;
 }
 
-    
+export type WeddingPlan = 'Básico' | 'Premium' | 'Deluxe';
+export type WeddingStatus = 'Ativo' | 'Concluído' | 'Pendente';
+
+export interface Wedding {
+    id: string;
+    coupleNames: string;
+    date: string;
+    plan: WeddingPlan;
+    price: number;
+    status: WeddingStatus;
+    createdAt: string;
+}

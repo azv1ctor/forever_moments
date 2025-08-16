@@ -5,12 +5,15 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { Photo, Comment } from './types';
-import { suggestPhotoCaption } from '@/ai/flows/suggest-photo-caption';
+import type { Photo, Comment, Wedding } from './types';
+import { suggestPhotoCaption as suggestPhotoCaptionFlow } from '@/ai/flows/suggest-photo-caption';
 import fs from 'fs/promises';
 import path from 'path';
 
 const PHOTOS_COLLECTION = 'photos';
+const WEDDINGS_COLLECTION = 'weddings';
+
+// --- Photo Actions ---
 
 export async function getPhotos(): Promise<Photo[]> {
   try {
@@ -97,7 +100,6 @@ export async function createPhoto({ author, caption, base64data, aiHint, filter 
         const fileName = `photos/${Date.now()}-${author.replace(/\s+/g, '-')}-${Math.round(Math.random() * 1E9)}.${extension}`;
         const uploadDir = path.join(process.cwd(), 'public', 'uploads');
         
-        // Create upload directory if it doesn't exist
         await fs.mkdir(uploadDir, { recursive: true });
         
         const localPath = path.join(uploadDir, fileName.split('/')[1]);
@@ -137,23 +139,27 @@ export async function createPhoto({ author, caption, base64data, aiHint, filter 
 
 export async function deletePhoto(photoId: string, imageUrl: string) {
   try {
+    // Delete Firestore document
     await db.collection(PHOTOS_COLLECTION).doc(photoId).delete();
 
     // Delete local file
     const filePath = path.join(process.cwd(), 'public', imageUrl);
-    await fs.unlink(filePath);
+    // Check if file exists before attempting to delete
+    try {
+        await fs.access(filePath);
+        await fs.unlink(filePath);
+    } catch (fsError: any) {
+        if (fsError.code !== 'ENOENT') {
+            // If the error is not "file not found", log it but don't fail the operation
+            console.warn(`Could not delete file ${filePath}:`, fsError);
+        }
+    }
     
     revalidatePath('/feed');
     revalidatePath('/admin/dashboard');
     return { success: true };
   } catch(error) {
     console.error("Erro ao excluir foto:", error);
-    if (error instanceof Error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
-        console.warn(`Local file for photoId ${photoId} not found, but proceeding.`);
-        revalidatePath('/feed');
-        revalidatePath('/admin/dashboard');
-        return { success: true, message: "Documento do Firestore excluído, mas o arquivo de imagem não foi encontrado (pode já ter sido removido)." };
-    }
     return { success: false, message: `Falha ao excluir a foto. Detalhes: ${error instanceof Error ? error.message : 'Erro desconhecido'}` };
   }
 }
@@ -167,7 +173,7 @@ export async function suggestCaptionAction(formData: FormData) {
       photoDataUri: formData.get('photoDataUri'),
     });
 
-    const result = await suggestPhotoCaption({
+    const result = await suggestPhotoCaptionFlow({
       photoDataUri,
       topicKeywords: 'casamento, celebração, alegria, amor, matrimônio, festa',
     });
@@ -178,4 +184,77 @@ export async function suggestCaptionAction(formData: FormData) {
     const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido';
     return { success: false, message: `Não foi possível sugerir uma legenda: ${errorMessage}` };
   }
+}
+
+// --- Wedding Actions ---
+
+export async function getWeddings(): Promise<Wedding[]> {
+  try {
+    const snapshot = await db.collection(WEDDINGS_COLLECTION).orderBy('createdAt', 'desc').get();
+    if (snapshot.empty) {
+      return [];
+    }
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Wedding));
+  } catch (error) {
+    console.error("Erro ao buscar casamentos:", error);
+    return [];
+  }
+}
+
+const WeddingSchema = z.object({
+  coupleNames: z.string().min(3, "Nomes dos noivos são obrigatórios."),
+  date: z.string().min(1, "A data do evento é obrigatória."),
+  plan: z.enum(['Básico', 'Premium', 'Deluxe']),
+  price: z.number().min(0, "O preço deve ser um valor positivo."),
+  status: z.enum(['Ativo', 'Concluído', 'Pendente']),
+});
+
+export async function createWedding(data: Omit<Wedding, 'id' | 'createdAt'>) {
+    try {
+        const validatedData = WeddingSchema.parse(data);
+        const newWeddingData = {
+            ...validatedData,
+            createdAt: new Date().toISOString(),
+        };
+
+        const docRef = await db.collection(WEDDINGS_COLLECTION).add(newWeddingData);
+        const newWedding: Wedding = { id: docRef.id, ...newWeddingData };
+
+        revalidatePath('/admin/weddings');
+        return { success: true, wedding: newWedding };
+    } catch (error) {
+        console.error("[CREATE_WEDDING_ERROR]", error);
+        const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
+        return { success: false, message: `Falha ao criar casamento: ${errorMessage}` };
+    }
+}
+
+export async function updateWedding(id: string, data: Partial<Omit<Wedding, 'id' | 'createdAt'>>) {
+    try {
+        const validatedData = WeddingSchema.partial().parse(data);
+        
+        await db.collection(WEDDINGS_COLLECTION).doc(id).update(validatedData);
+
+        const doc = await db.collection(WEDDINGS_COLLECTION).doc(id).get();
+        const updatedWedding = { id: doc.id, ...doc.data() } as Wedding;
+
+        revalidatePath('/admin/weddings');
+        return { success: true, wedding: updatedWedding };
+    } catch (error) {
+        console.error("[UPDATE_WEDDING_ERROR]", error);
+        const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
+        return { success: false, message: `Falha ao atualizar casamento: ${errorMessage}` };
+    }
+}
+
+export async function deleteWedding(id: string) {
+    try {
+        await db.collection(WEDDINGS_COLLECTION).doc(id).delete();
+        revalidatePath('/admin/weddings');
+        return { success: true };
+    } catch (error) {
+        console.error("[DELETE_WEDDING_ERROR]", error);
+        const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
+        return { success: false, message: `Falha ao excluir casamento: ${errorMessage}` };
+    }
 }
