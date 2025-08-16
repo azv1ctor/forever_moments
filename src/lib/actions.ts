@@ -37,7 +37,6 @@ export async function getPhotos(weddingId: string): Promise<Photo[]> {
   try {
     const snapshot = await db.collection(PHOTOS_COLLECTION)
                              .where('weddingId', '==', weddingId)
-                             .orderBy('createdAt', 'desc')
                              .get();
     if (snapshot.empty) {
       return [];
@@ -50,6 +49,10 @@ export async function getPhotos(weddingId: string): Promise<Photo[]> {
         comments: data.comments || [],
        } as Photo
     });
+    
+    // Sort photos by creation date descending in the code
+    photos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
     return photos;
   } catch (error) {
     console.error("Erro ao buscar fotos:", error);
