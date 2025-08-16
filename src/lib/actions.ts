@@ -20,6 +20,8 @@ const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
 
 // Helper function to handle file saving
 async function saveFile(file: File, subfolder: string): Promise<string> {
+    await fs.mkdir(UPLOADS_DIR, { recursive: true });
+    
     const fileBuffer = Buffer.from(await file.arrayBuffer());
 
     const folderPath = path.join(UPLOADS_DIR, subfolder);

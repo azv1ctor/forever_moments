@@ -1,3 +1,4 @@
+
 import { getPhotos, getWedding } from '@/lib/actions';
 import PhotoCard from '@/components/photo-card';
 import { notFound } from 'next/navigation';
