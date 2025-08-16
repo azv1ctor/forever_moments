@@ -22,17 +22,23 @@ export default function AppLayout({
     const verifyGuest = async () => {
       if (!weddingId) return;
 
-      const fetchedWedding = await getWedding(weddingId);
-      if (!fetchedWedding) {
-        notFound();
-      }
-      setWedding(fetchedWedding);
+      try {
+        const fetchedWedding = await getWedding(weddingId);
+        if (!fetchedWedding) {
+          notFound();
+          return;
+        }
+        setWedding(fetchedWedding);
 
-      const guestName = localStorage.getItem(`guestName_${weddingId}`);
-      if (!guestName) {
-        router.push(`/${weddingId}`);
-      } else {
-        setIsVerified(true);
+        const guestName = localStorage.getItem(`guestName_${weddingId}`);
+        if (!guestName) {
+          router.push(`/${weddingId}`);
+        } else {
+          setIsVerified(true);
+        }
+      } catch (error) {
+        console.error("Failed to verify guest:", error);
+        notFound();
       }
     };
     

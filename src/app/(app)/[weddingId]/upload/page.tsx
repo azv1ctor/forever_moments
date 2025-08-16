@@ -20,8 +20,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 
 const uploadSchema = z.object({
   caption: z.string().max(280, 'A legenda é muito longa.').optional(),
-  photo: z.instanceof(File)
-    .refine((file) => file.size > 0, 'A imagem é obrigatória.')
+  photo: z.custom<File>((v) => v instanceof File && v.size > 0, 'A imagem é obrigatória.')
     .refine((file) => file.size <= 10000000, `O tamanho máximo do arquivo é 10MB.`),
 });
 

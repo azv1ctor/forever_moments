@@ -14,6 +14,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useParams } from 'next/navigation';
 
 export default function PhotoCard({ photo: initialPhoto }: { photo: Photo }) {
   const [photo, setPhoto] = useState(initialPhoto);
@@ -23,30 +24,35 @@ export default function PhotoCard({ photo: initialPhoto }: { photo: Photo }) {
   const [isPending, startTransition] = useTransition();
   const [guestName, setGuestName] = useState('');
   const { toast } = useToast();
+  const params = useParams();
+  const weddingId = params.weddingId as string;
 
   useEffect(() => {
-    const likedPhotos = JSON.parse(localStorage.getItem('likedPhotos') || '[]');
-    setIsLiked(likedPhotos.includes(photo.id));
-    setGuestName(localStorage.getItem('guestName') || 'Convidado');
-  }, [photo.id]);
+    if (weddingId) {
+      const likedPhotos = JSON.parse(localStorage.getItem(`likedPhotos_${weddingId}`) || '[]');
+      setIsLiked(likedPhotos.includes(photo.id));
+      setGuestName(localStorage.getItem(`guestName_${weddingId}`) || 'Convidado');
+    }
+  }, [photo.id, weddingId]);
 
   const timeAgo = photo.createdAt ? formatDistanceToNow(new Date(photo.createdAt), { addSuffix: true, locale: ptBR }) : 'agora mesmo';
   
   const handleLike = async () => {
+    if (!weddingId) return;
     const newLikedState = !isLiked;
     const originalLikes = photo.likes;
 
     setIsLiked(newLikedState);
     setPhoto(prev => ({ ...prev, likes: prev.likes + (newLikedState ? 1 : -1) }));
 
-    const likedPhotos = JSON.parse(localStorage.getItem('likedPhotos') || '[]');
+    const likedPhotos = JSON.parse(localStorage.getItem(`likedPhotos_${weddingId}`) || '[]');
     if (newLikedState) {
-      localStorage.setItem('likedPhotos', JSON.stringify([...likedPhotos, photo.id]));
+      localStorage.setItem(`likedPhotos_${weddingId}`, JSON.stringify([...likedPhotos, photo.id]));
     } else {
-      localStorage.setItem('likedPhotos', JSON.stringify(likedPhotos.filter((id: string) => id !== photo.id)));
+      localStorage.setItem(`likedPhotos_${weddingId}`, JSON.stringify(likedPhotos.filter((id: string) => id !== photo.id)));
     }
 
-    const result = await likePhoto(photo.id, newLikedState);
+    const result = await likePhoto(photo.id, weddingId, newLikedState);
     if (!result.success) {
       // Revert optimistic update on failure
       setIsLiked(!newLikedState);
@@ -57,10 +63,10 @@ export default function PhotoCard({ photo: initialPhoto }: { photo: Photo }) {
   
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim()) return;
+    if (!newComment.trim() || !weddingId) return;
 
     startTransition(async () => {
-        const result = await addComment(photo.id, guestName, newComment.trim());
+        const result = await addComment(photo.id, weddingId, guestName, newComment.trim());
         if(result.success && result.comment) {
             setPhoto(prev => ({ ...prev, comments: [...(prev.comments || []), result.comment as CommentType] }));
             setNewComment('');

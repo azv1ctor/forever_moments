@@ -7,6 +7,7 @@ export interface Comment {
 
 export interface Photo {
   id: string;
+  weddingId: string; // <-- Adicionado para isolar fotos por casamento
   imageUrl: string;
   caption: string;
   author: string;
@@ -28,4 +29,5 @@ export interface Wedding {
     price: number;
     status: WeddingStatus;
     createdAt: string;
+    logoUrl?: string; // <-- Adicionado para logo personalizada
 }

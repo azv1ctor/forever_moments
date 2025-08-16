@@ -2,8 +2,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getPhotos, deletePhoto } from '@/lib/actions';
-import type { Photo } from '@/lib/types';
+import { getWeddings, deletePhoto } from '@/lib/actions';
+import type { Photo, Wedding } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,37 +13,64 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function AdminDashboardPage() {
   const { toast } = useToast();
-  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
+  const [weddings, setWeddings] = useState<Wedding[]>([]);
+  const [selectedWeddingId, setSelectedWeddingId] = useState<string | 'all'>('all');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-      const fetchPhotos = async () => {
+      const fetchInitialData = async () => {
         setIsLoading(true);
-        const fetchedPhotos = await getPhotos();
-        setPhotos(fetchedPhotos);
+        const fetchedWeddings = await getWeddings();
+        setWeddings(fetchedWeddings);
+        // Fetch all photos initially
+        const allFetchedPhotos = await Promise.all(fetchedWeddings.map(w => getPhotos(w.id)));
+        setAllPhotos(allFetchedPhotos.flat().sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         setIsLoading(false);
       };
-      fetchPhotos();
+      fetchInitialData();
   }, []);
 
-  const handleDeletePhoto = async (photoId: string, imageUrl: string) => {
-    const result = await deletePhoto(photoId, imageUrl);
+  const handleDeletePhoto = async (photoId: string, weddingId: string, imageUrl: string) => {
+    const result = await deletePhoto(photoId, weddingId, imageUrl);
     if (result.success) {
-      setPhotos(photos.filter(p => p.id !== photoId));
+      setAllPhotos(allPhotos.filter(p => p.id !== photoId));
       toast({ title: 'Sucesso!', description: 'Foto excluída permanentemente.' });
     } else {
       toast({ variant: 'destructive', title: 'Erro', description: result.message });
     }
   };
 
+  const filteredPhotos = selectedWeddingId === 'all' 
+    ? allPhotos 
+    : allPhotos.filter(p => p.weddingId === selectedWeddingId);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Gerenciador de Fotos</CardTitle>
-        <CardDescription>Visualize e apague fotos enviadas pelos convidados.</CardDescription>
+        <div className="flex justify-between items-center">
+            <div>
+                <CardTitle>Gerenciador de Fotos</CardTitle>
+                <CardDescription>Visualize e apague fotos enviadas pelos convidados.</CardDescription>
+            </div>
+            <Select value={selectedWeddingId} onValueChange={setSelectedWeddingId}>
+                <SelectTrigger className="w-[280px]">
+                    <SelectValue placeholder="Filtrar por casamento..." />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">Todos os Casamentos</SelectItem>
+                    {weddings.map(wedding => (
+                        <SelectItem key={wedding.id} value={wedding.id}>
+                            {wedding.coupleNames}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -60,7 +87,7 @@ export default function AdminDashboardPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {photos.map((photo) => (
+            {filteredPhotos.map((photo) => (
               <TableRow key={photo.id}>
                 <TableCell className="hidden sm:table-cell">
                   <Image
@@ -95,7 +122,7 @@ export default function AdminDashboardPage() {
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeletePhoto(photo.id, photo.imageUrl)}>
+                              <AlertDialogAction onClick={() => handleDeletePhoto(photo.id, photo.weddingId, photo.imageUrl)}>
                                   Sim, excluir foto
                               </AlertDialogAction>
                               </AlertDialogFooter>
@@ -108,9 +135,9 @@ export default function AdminDashboardPage() {
           </TableBody>
         </Table>
         )}
-          { !isLoading && photos.length === 0 && (
+          { !isLoading && filteredPhotos.length === 0 && (
           <div className="text-center py-10">
-              <p className="text-muted-foreground">Nenhuma foto foi enviada ainda.</p>
+              <p className="text-muted-foreground">Nenhuma foto foi enviada ainda {selectedWeddingId !== 'all' ? 'para este casamento' : ''}.</p>
           </div>
           )}
       </CardContent>

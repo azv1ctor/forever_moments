@@ -5,19 +5,40 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { Photo, Comment, Wedding } from './types';
-import { suggestPhotoCaption as suggestPhotoCaptionFlow } from '@/ai/flows/suggest-photo-caption';
+import type { Photo, Comment, Wedding, WeddingStatus, WeddingPlan } from './types';
+import { suggestPhotoCaption } from '@/ai/flows/suggest-photo-caption';
 import fs from 'fs/promises';
 import path from 'path';
 
 const PHOTOS_COLLECTION = 'photos';
 const WEDDINGS_COLLECTION = 'weddings';
 
+const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
+
+// Helper function to handle file saving
+async function saveFile(file: File, subfolder: string): Promise<string> {
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+
+    const folderPath = path.join(UPLOADS_DIR, subfolder);
+    await fs.mkdir(folderPath, { recursive: true });
+    
+    // Create a unique filename
+    const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}-${file.name}`;
+    const localPath = path.join(folderPath, filename);
+    
+    await fs.writeFile(localPath, fileBuffer);
+    
+    return `/uploads/${subfolder}/${filename}`;
+}
+
 // --- Photo Actions ---
 
-export async function getPhotos(): Promise<Photo[]> {
+export async function getPhotos(weddingId: string): Promise<Photo[]> {
   try {
-    const snapshot = await db.collection(PHOTOS_COLLECTION).orderBy('createdAt', 'desc').get();
+    const snapshot = await db.collection(PHOTOS_COLLECTION)
+                             .where('weddingId', '==', weddingId)
+                             .orderBy('createdAt', 'desc')
+                             .get();
     if (snapshot.empty) {
       return [];
     }
@@ -36,15 +57,14 @@ export async function getPhotos(): Promise<Photo[]> {
   }
 }
 
-export async function likePhoto(photoId: string, like: boolean) {
+export async function likePhoto(photoId: string, weddingId: string, like: boolean) {
   try {
     const photoRef = db.collection(PHOTOS_COLLECTION).doc(photoId);
     const increment = FieldValue.increment(like ? 1 : -1);
     
     await photoRef.update({ likes: increment });
     
-    revalidatePath('/feed');
-    revalidatePath('/admin/dashboard');
+    revalidatePath(`/${weddingId}/feed`);
     return { success: true };
   } catch (error) {
     console.error("Erro ao curtir foto:", error);
@@ -52,7 +72,7 @@ export async function likePhoto(photoId: string, like: boolean) {
   }
 }
 
-export async function addComment(photoId: string, author: string, commentText: string) {
+export async function addComment(photoId: string, weddingId: string, author: string, commentText: string) {
   try {
     const photoRef = db.collection(PHOTOS_COLLECTION).doc(photoId);
     const newComment: Comment = {
@@ -66,8 +86,7 @@ export async function addComment(photoId: string, author: string, commentText: s
       comments: FieldValue.arrayUnion(newComment)
     });
 
-    revalidatePath('/feed');
-    revalidatePath('/admin/dashboard');
+    revalidatePath(`/${weddingId}/feed`);
     return { success: true, comment: newComment };
   } catch (error) {
     console.error("Erro ao adicionar comentário:", error);
@@ -75,43 +94,38 @@ export async function addComment(photoId: string, author: string, commentText: s
   }
 }
 
-interface CreatePhotoArgs {
-    author: string;
-    caption: string;
-    base64data: string;
-    aiHint: string;
-    filter?: string;
-}
+const CreatePhotoSchema = z.object({
+  weddingId: z.string(),
+  author: z.string(),
+  caption: z.string().optional(),
+  photo: z.instanceof(File),
+  aiHint: z.string().optional(),
+  filter: z.string().optional(),
+});
 
-export async function createPhoto({ author, caption, base64data, aiHint, filter }: CreatePhotoArgs) {
-    if (!author) {
-      return { success: false, message: 'Usuário não identificado. Faça o login novamente.' };
-    }
-    
-    if (!base64data || !base64data.startsWith('data:image/')) {
-        return { success: false, message: 'Formato de imagem inválido.' };
-    }
-
+export async function createPhoto(formData: FormData) {
     try {
-        const imageBuffer = Buffer.from(base64data.split(',')[1], 'base64');
-        const mimeType = base64data.match(/data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
-        const extension = mimeType.split('/')[1];
+        const data = Object.fromEntries(formData);
+        const validated = CreatePhotoSchema.safeParse(data);
 
-        const fileName = `photos/${Date.now()}-${author.replace(/\s+/g, '-')}-${Math.round(Math.random() * 1E9)}.${extension}`;
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+        if (!validated.success) {
+            return { success: false, message: `Dados inválidos: ${validated.error.message}` };
+        }
         
-        await fs.mkdir(uploadDir, { recursive: true });
+        const { weddingId, author, caption, photo, aiHint, filter } = validated.data;
         
-        const localPath = path.join(uploadDir, fileName.split('/')[1]);
-        await fs.writeFile(localPath, imageBuffer);
+        if (!author) {
+            return { success: false, message: 'Usuário não identificado. Faça o login novamente.' };
+        }
         
-        const publicUrl = `/uploads/${fileName.split('/')[1]}`;
+        const publicUrl = await saveFile(photo, weddingId);
         
         const newPhotoData: Omit<Photo, 'id'> = {
+            weddingId,
             author,
-            caption,
+            caption: caption || '',
             imageUrl: publicUrl,
-            aiHint,
+            aiHint: aiHint || "user uploaded",
             filter: filter || 'filter-none',
             likes: 0,
             comments: [],
@@ -120,8 +134,7 @@ export async function createPhoto({ author, caption, base64data, aiHint, filter 
 
         const docRef = await db.collection(PHOTOS_COLLECTION).add(newPhotoData);
         
-        revalidatePath('/feed');
-        revalidatePath('/admin/dashboard');
+        revalidatePath(`/${weddingId}/feed`);
         
         const newPhoto: Photo = {
             id: docRef.id,
@@ -136,26 +149,23 @@ export async function createPhoto({ author, caption, base64data, aiHint, filter 
     }
 }
 
-
-export async function deletePhoto(photoId: string, imageUrl: string) {
+export async function deletePhoto(photoId: string, weddingId: string, imageUrl: string) {
   try {
     // Delete Firestore document
     await db.collection(PHOTOS_COLLECTION).doc(photoId).delete();
 
     // Delete local file
     const filePath = path.join(process.cwd(), 'public', imageUrl);
-    // Check if file exists before attempting to delete
     try {
         await fs.access(filePath);
         await fs.unlink(filePath);
     } catch (fsError: any) {
         if (fsError.code !== 'ENOENT') {
-            // If the error is not "file not found", log it but don't fail the operation
             console.warn(`Could not delete file ${filePath}:`, fsError);
         }
     }
     
-    revalidatePath('/feed');
+    revalidatePath(`/${weddingId}/feed`);
     revalidatePath('/admin/dashboard');
     return { success: true };
   } catch(error) {
@@ -173,7 +183,7 @@ export async function suggestCaptionAction(formData: FormData) {
       photoDataUri: formData.get('photoDataUri'),
     });
 
-    const result = await suggestPhotoCaptionFlow({
+    const result = await suggestPhotoCaption({
       photoDataUri,
       topicKeywords: 'casamento, celebração, alegria, amor, matrimônio, festa',
     });
@@ -187,6 +197,19 @@ export async function suggestCaptionAction(formData: FormData) {
 }
 
 // --- Wedding Actions ---
+export async function getWedding(id: string): Promise<Wedding | null> {
+    try {
+        const doc = await db.collection(WEDDINGS_COLLECTION).doc(id).get();
+        if (!doc.exists) {
+            return null;
+        }
+        return { id: doc.id, ...doc.data() } as Wedding;
+    } catch (error) {
+        console.error("Erro ao buscar casamento:", error);
+        return null;
+    }
+}
+
 
 export async function getWeddings(): Promise<Wedding[]> {
   try {
@@ -205,20 +228,34 @@ const WeddingSchema = z.object({
   coupleNames: z.string().min(3, "Nomes dos noivos são obrigatórios."),
   date: z.string().min(1, "A data do evento é obrigatória."),
   plan: z.enum(['Básico', 'Premium', 'Deluxe']),
-  price: z.number().min(0, "O preço deve ser um valor positivo."),
+  price: z.coerce.number().min(0, "O preço deve ser um valor positivo."),
   status: z.enum(['Ativo', 'Concluído', 'Pendente']),
+  logo: z.instanceof(File).optional(),
 });
 
-export async function createWedding(data: Omit<Wedding, 'id' | 'createdAt'>) {
+export async function createWedding(formData: FormData) {
     try {
-        const validatedData = WeddingSchema.parse(data);
+        const data = Object.fromEntries(formData);
+        const validated = WeddingSchema.safeParse(data);
+
+        if (!validated.success) {
+            return { success: false, message: `Dados inválidos: ${validated.error.message}` };
+        }
+        const { logo, ...weddingData } = validated.data;
+        let logoUrl;
+
+        if (logo && logo.size > 0) {
+            logoUrl = await saveFile(logo, 'logos');
+        }
+
         const newWeddingData = {
-            ...validatedData,
+            ...weddingData,
+            logoUrl,
             createdAt: new Date().toISOString(),
         };
 
         const docRef = await db.collection(WEDDINGS_COLLECTION).add(newWeddingData);
-        const newWedding: Wedding = { id: docRef.id, ...newWeddingData };
+        const newWedding: Wedding = { id: docRef.id, ...newWeddingData, plan: newWeddingData.plan as WeddingPlan, status: newWeddingData.status as WeddingStatus };
 
         revalidatePath('/admin/weddings');
         return { success: true, wedding: newWedding };
@@ -229,11 +266,26 @@ export async function createWedding(data: Omit<Wedding, 'id' | 'createdAt'>) {
     }
 }
 
-export async function updateWedding(id: string, data: Partial<Omit<Wedding, 'id' | 'createdAt'>>) {
+export async function updateWedding(id: string, formData: FormData) {
     try {
-        const validatedData = WeddingSchema.partial().parse(data);
+        const data = Object.fromEntries(formData);
+        const validated = WeddingSchema.safeParse(data);
+        if (!validated.success) {
+            return { success: false, message: `Dados inválidos: ${validated.error.message}` };
+        }
+        const { logo, ...weddingData } = validated.data;
         
-        await db.collection(WEDDINGS_COLLECTION).doc(id).update(validatedData);
+        let logoUrl;
+        if (logo && logo.size > 0) {
+            logoUrl = await saveFile(logo, 'logos');
+        }
+        
+        const updateData: any = { ...weddingData };
+        if (logoUrl) {
+            updateData.logoUrl = logoUrl;
+        }
+
+        await db.collection(WEDDINGS_COLLECTION).doc(id).update(updateData);
 
         const doc = await db.collection(WEDDINGS_COLLECTION).doc(id).get();
         const updatedWedding = { id: doc.id, ...doc.data() } as Wedding;
@@ -249,7 +301,20 @@ export async function updateWedding(id: string, data: Partial<Omit<Wedding, 'id'
 
 export async function deleteWedding(id: string) {
     try {
+        // Here you might want to delete all associated photos first
+        const photosSnapshot = await db.collection(PHOTOS_COLLECTION).where('weddingId', '==', id).get();
+        const deletePromises = photosSnapshot.docs.map(doc => {
+            const photo = doc.data() as Photo;
+            // Also delete file from local storage
+            const filePath = path.join(process.cwd(), 'public', photo.imageUrl);
+            fs.unlink(filePath).catch(err => console.warn(`Could not delete file ${filePath}:`, err));
+            return doc.ref.delete();
+        });
+        await Promise.all(deletePromises);
+
+        // Delete the wedding document itself
         await db.collection(WEDDINGS_COLLECTION).doc(id).delete();
+        
         revalidatePath('/admin/weddings');
         return { success: true };
     } catch (error) {

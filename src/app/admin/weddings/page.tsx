@@ -8,13 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MoreHorizontal, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Edit, Link as LinkIcon, Clipboard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import Image from 'next/image';
+import Link from 'next/link';
 
 const plans: Record<WeddingPlan, { name: WeddingPlan; min: number; max: number }> = {
   'Básico': { name: 'Básico', min: 1000, max: 1500 },
@@ -35,6 +37,8 @@ export default function WeddingsPage() {
   const [eventDate, setEventDate] = useState('');
   const [plan, setPlan] = useState<WeddingPlan>('Básico');
   const [price, setPrice] = useState<number>(plans['Básico'].min);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchWeddings = async () => {
@@ -52,15 +56,30 @@ export default function WeddingsPage() {
     setPlan('Básico');
     setPrice(plans['Básico'].min);
     setEditingWedding(null);
+    setLogoFile(null);
+    setLogoPreview(null);
+  };
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleOpenDialog = (wedding: Wedding | null = null) => {
     if (wedding) {
       setEditingWedding(wedding);
       setCoupleNames(wedding.coupleNames);
-      setEventDate(wedding.date.split('T')[0]); // Format for input type="date"
+      setEventDate(wedding.date.split('T')[0]);
       setPlan(wedding.plan);
       setPrice(wedding.price);
+      setLogoPreview(wedding.logoUrl || null);
     } else {
       resetForm();
     }
@@ -68,7 +87,7 @@ export default function WeddingsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este casamento? Esta ação é irreversível.')) return;
+    if (!confirm('Tem certeza que deseja excluir este casamento? Esta ação é irreversível e apagará todas as fotos associadas.')) return;
     const result = await deleteWedding(id);
     if (result.success) {
       setWeddings(weddings.filter(w => w.id !== id));
@@ -78,23 +97,35 @@ export default function WeddingsPage() {
     }
   };
 
+  const copyToClipboard = (id: string) => {
+    const url = `${window.location.origin}/${id}`;
+    navigator.clipboard.writeText(url);
+    toast({ title: 'Copiado!', description: 'URL do casamento copiada para a área de transferência.' });
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    const weddingData = {
-      coupleNames,
-      date: new Date(eventDate).toISOString(),
-      plan,
-      price,
-      status: 'Ativo' as const,
-    };
+    const formData = new FormData();
+    formData.append('coupleNames', coupleNames);
+    formData.append('date', new Date(eventDate).toISOString());
+    formData.append('plan', plan);
+    formData.append('price', String(price));
+    if (editingWedding) {
+        formData.append('status', editingWedding.status);
+    } else {
+        formData.append('status', 'Ativo');
+    }
+    if (logoFile) {
+        formData.append('logo', logoFile);
+    }
     
     let result;
     if (editingWedding) {
-        result = await updateWedding(editingWedding.id, weddingData);
+        result = await updateWedding(editingWedding.id, formData);
     } else {
-        result = await createWedding(weddingData);
+        result = await createWedding(formData);
     }
 
     if (result.success && result.wedding) {
@@ -135,21 +166,27 @@ export default function WeddingsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Noivos</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Plano</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead><span className="sr-only">Ações</span></TableHead>
+                  <TableHead className="hidden sm:table-cell">Data</TableHead>
+                  <TableHead className="hidden md:table-cell">Plano</TableHead>
+                  <TableHead>Link</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {weddings.length > 0 ? weddings.map((wedding) => (
                   <TableRow key={wedding.id}>
-                    <TableCell className="font-medium">{wedding.coupleNames}</TableCell>
-                    <TableCell>{format(new Date(wedding.date), "dd/MM/yyyy")}</TableCell>
-                    <TableCell>{wedding.plan}</TableCell>
-                    <TableCell>R$ {wedding.price.toLocaleString('pt-BR')}</TableCell>
-                    <TableCell>{wedding.status}</TableCell>
+                    <TableCell className="font-medium flex items-center gap-3">
+                      {wedding.logoUrl && <Image src={wedding.logoUrl} alt={`Logo ${wedding.coupleNames}`} width={40} height={40} className="rounded-full object-cover" />}
+                      <span>{wedding.coupleNames}</span>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">{format(new Date(wedding.date), "dd/MM/yyyy")}</TableCell>
+                    <TableCell className="hidden md:table-cell">{wedding.plan}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm" onClick={() => copyToClipboard(wedding.id)}>
+                        <Clipboard className="mr-2 h-4 w-4" />
+                        Copiar URL
+                      </Button>
+                    </TableCell>
                     <TableCell className="text-right">
                        <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -164,6 +201,12 @@ export default function WeddingsPage() {
                                     <Edit className="mr-2 h-4 w-4" />
                                     Editar
                                 </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/${wedding.id}/feed`} target="_blank">
+                                    <LinkIcon className="mr-2 h-4 w-4" />
+                                    Ver Feed
+                                  </Link>
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(wedding.id)}>
                                     <Trash2 className="mr-2 h-4 w-4" />
@@ -175,7 +218,7 @@ export default function WeddingsPage() {
                   </TableRow>
                 )) : (
                     <TableRow>
-                        <TableCell colSpan={6} className="h-24 text-center">
+                        <TableCell colSpan={5} className="h-24 text-center">
                             Nenhum casamento encontrado.
                         </TableCell>
                     </TableRow>
@@ -196,6 +239,13 @@ export default function WeddingsPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+               <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="logo" className="text-right">Logo</Label>
+                <div className="col-span-3 flex items-center gap-4">
+                    {logoPreview && <Image src={logoPreview} alt="Preview da logo" width={64} height={64} className="rounded-md object-cover" />}
+                    <Input id="logo" type="file" onChange={handleLogoChange} className="col-span-3" accept="image/png, image/jpeg, image/gif" />
+                </div>
+              </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="coupleNames" className="text-right">Noivos</Label>
                 <Input id="coupleNames" value={coupleNames} onChange={(e) => setCoupleNames(e.target.value)} className="col-span-3" placeholder="Ex: João & Maria" required />
