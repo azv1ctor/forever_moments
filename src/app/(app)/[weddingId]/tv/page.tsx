@@ -1,92 +1,82 @@
-// src/app/(app)/[weddingId]/tv/page.tsx
+
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { notFound, useParams } from 'next/navigation';
-import Image from 'next/image';
+import { useEffect, useState } from 'react';
 import { getPhotos, getWedding } from '@/lib/actions';
 import type { Photo, Wedding } from '@/lib/types';
-import { Card, CardContent } from '@/components/ui/card';
+import { useParams, notFound } from 'next/navigation';
 import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel';
-import { Skeleton } from '@/components/ui/skeleton';
+import Autoplay from 'embla-carousel-autoplay';
+import Image from 'next/image';
 import { Logo } from '@/components/logo';
-import { cn } from '@/lib/utils';
-import Autoplay from "embla-carousel-autoplay";
-
-export const dynamic = 'force-dynamic';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tv } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function TvCarousel({ initialPhotos, wedding }: { initialPhotos: Photo[], wedding: Wedding }) {
     const [photos, setPhotos] = useState<Photo[]>(initialPhotos);
+    const weddingId = wedding.id;
 
-    // Poll for new photos every 15 seconds
     useEffect(() => {
-        const interval = setInterval(async () => {
-            const newPhotos = await getPhotos(wedding.id);
-            // Check if there are actually new photos before updating state
-            if (newPhotos.length > photos.length) {
+        const intervalId = setInterval(async () => {
+            try {
+                const newPhotos = await getPhotos(weddingId);
+                 // Sort to ensure the newest photo is first
+                newPhotos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
                 setPhotos(newPhotos);
+            } catch (error) {
+                console.error("Failed to fetch new photos for TV mode:", error);
             }
-        }, 15000); // 15 seconds
+        }, 15000); // Fetch every 15 seconds
 
-        return () => clearInterval(interval);
-    }, [wedding.id, photos.length]);
+        return () => clearInterval(intervalId);
+    }, [weddingId]);
+
 
     if (photos.length === 0) {
         return (
-             <div className="h-screen w-screen flex flex-col items-center justify-center text-center bg-black text-white p-4">
-                {wedding.logoUrl && (
-                     <Image src={wedding.logoUrl} alt={`Logo ${wedding.coupleNames}`} width={100} height={100} className="rounded-full object-cover mb-6" />
-                )}
-                <h1 className="text-4xl font-headline mb-4">Aguardando as primeiras fotos...</h1>
-                <p className="text-xl text-white/70">As fotos enviadas pelos convidados aparecerão aqui em tempo real!</p>
+            <div className="flex h-full flex-col items-center justify-center text-center p-8">
+                 <div className="mx-auto bg-primary/10 p-4 rounded-full mb-6">
+                    <Tv className="h-12 w-12 text-primary"/>
+                 </div>
+                <h2 className="text-3xl font-headline font-bold text-white">Aguardando as primeiras fotos...</h2>
+                <p className="mt-2 text-lg text-white/70">As fotos enviadas pelos convidados aparecerão aqui em tempo real!</p>
             </div>
         )
     }
-    
-    return (
-        <div className="relative h-screen w-screen overflow-hidden bg-black">
-             <div className="absolute top-8 left-8 z-20 flex items-center gap-4 bg-black/50 p-4 rounded-xl backdrop-blur-sm">
-                {wedding.logoUrl ? (
-                    <Image src={wedding.logoUrl} alt={`Logo ${wedding.coupleNames}`} width={80} height={80} className="rounded-full object-cover" />
-                ) : (
-                    <div className="w-20 h-20 flex items-center justify-center">
-                        <Logo />
-                    </div>
-                )}
-                <h1 className="text-4xl font-headline text-white shadow-lg">{wedding.coupleNames}</h1>
-            </div>
 
+    return (
+        <div className="h-full w-full relative">
             <Carousel
+                plugins={[Autoplay({ delay: 5000, stopOnInteraction: false })]}
+                opts={{ loop: true }}
                 className="w-full h-full"
-                plugins={[
-                    Autoplay({
-                        delay: 5000, // 5 seconds per slide
-                        stopOnInteraction: false,
-                    }),
-                ]}
-                opts={{
-                    loop: true,
-                    align: 'start',
-                }}
             >
-                <CarouselContent className="h-full">
+                <CarouselContent>
                     {photos.map((photo, index) => (
-                        <CarouselItem key={photo.id || index} className="h-full relative">
-                            <Card className="h-full w-full bg-black border-0 rounded-none">
-                                <CardContent className="relative flex h-full items-center justify-center p-0">
+                        <CarouselItem key={photo.id} className="relative">
+                            <AnimatePresence>
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 1.5 }}
+                                    className="h-full w-full"
+                                >
                                     <Image
                                         src={photo.imageUrl}
                                         alt={photo.caption || `Foto por ${photo.author}`}
                                         fill
-                                        className={cn('object-contain', photo.filter)}
-                                        priority={index === 0} // Prioritize loading the first image
+                                        className="object-contain"
+                                        priority={index === 0}
                                     />
-                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent p-8 text-white">
-                                        {photo.caption && <p className="text-2xl font-bold mb-1 shadow-lg">{photo.caption}</p>}
-                                        <p className="text-lg text-white/80 shadow-md">Enviado por: {photo.author}</p>
+                                    <div className="absolute bottom-8 left-8 right-8 text-white bg-black/50 p-4 rounded-lg shadow-lg">
+                                        <p className="text-xl font-bold">{photo.author}</p>
+                                        {photo.caption && <p className="text-lg">{photo.caption}</p>}
                                     </div>
-                                </CardContent>
-                            </Card>
+                                </motion.div>
+                            </AnimatePresence>
                         </CarouselItem>
                     ))}
                 </CarouselContent>
@@ -96,64 +86,78 @@ function TvCarousel({ initialPhotos, wedding }: { initialPhotos: Photo[], weddin
 }
 
 
-export default function TvPage() {
+export default function TVPage() {
     const params = useParams();
     const weddingId = params.weddingId as string;
-    const [initialData, setInitialData] = useState<{ wedding: Wedding, photos: Photo[] } | null>(null);
+    const [wedding, setWedding] = useState<Wedding | null>(null);
+    const [photos, setPhotos] = useState<Photo[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         if (!weddingId) return;
 
-        const fetchInitialData = async () => {
+        const fetchData = async () => {
             setIsLoading(true);
             try {
-                const wedding = await getWedding(weddingId);
-                if (!wedding) {
+                const [weddingData, photoData] = await Promise.all([
+                    getWedding(weddingId),
+                    getPhotos(weddingId),
+                ]);
+
+                if (!weddingData) {
                     notFound();
                     return;
                 }
-                // Check if the plan allows for TV Carousel
-                if (!wedding.planDetails.tvCarousel) {
-                    // You can create a more elegant "feature not available" page
-                    // For now, just redirecting to the feed
-                    window.location.href = `/${weddingId}/feed`;
-                    return;
-                }
-                const photos = await getPhotos(weddingId);
-                setInitialData({ wedding, photos });
+                
+                weddingData.coupleNames = weddingData.coupleNames || "Nosso Casamento";
+                
+                setWedding(weddingData);
+                setPhotos(photoData);
+
             } catch (error) {
-                console.error("Failed to load TV mode data", error);
-                notFound();
+                console.error("Failed to fetch initial data for TV mode:", error);
+                // Optionally show an error state
             } finally {
                 setIsLoading(false);
             }
         };
 
-        fetchInitialData();
+        fetchData();
     }, [weddingId]);
+
 
     if (isLoading) {
         return (
-            <div className="h-screen w-screen flex items-center justify-center bg-black">
-                <div className="flex flex-col items-center gap-4">
-                    <Skeleton className="h-20 w-20 rounded-full" />
+             <div className="h-screen w-screen bg-black flex items-center justify-center p-8">
+                <div className="text-center space-y-4">
+                    <Skeleton className="h-24 w-24 rounded-full mx-auto" />
                     <Skeleton className="h-8 w-64" />
-                    <p className="text-white/50">Carregando momentos...</p>
+                    <Skeleton className="h-screen w-screen" />
                 </div>
             </div>
         );
     }
-
-    if (!initialData) {
-        // This case would be for a general error, handled by notFound() usually
-        return (
-             <div className="h-screen w-screen flex flex-col items-center justify-center text-center bg-black text-white p-4">
-                <h1 className="text-4xl font-headline mb-4">Erro ao Carregar</h1>
-                <p className="text-xl text-white/70">Não foi possível carregar os dados do evento.</p>
-            </div>
-        )
-    }
     
-    return <TvCarousel initialPhotos={initialData.photos} wedding={initialData.wedding} />;
+    if (!wedding) {
+        return notFound();
+    }
+
+
+    return (
+        <div className="h-screen w-screen bg-black text-white font-body flex flex-col">
+            <header className="absolute top-0 left-0 right-0 z-10 p-8">
+                 <div className="flex items-center gap-3">
+                    {wedding.logoUrl ? (
+                        <Image src={wedding.logoUrl} alt={`Logo ${wedding.coupleNames}`} width={60} height={60} className="rounded-full object-cover" />
+                    ) : (
+                        <div className="h-14 w-14 bg-white/20 rounded-full flex items-center justify-center"><Tv className="h-8 w-8 text-white"/></div>
+                    )}
+                    <h1 className="text-4xl font-bold font-headline">{wedding.coupleNames}</h1>
+                 </div>
+            </header>
+            <main className="flex-1 flex items-center justify-center">
+                 <TvCarousel initialPhotos={photos} wedding={wedding} />
+            </main>
+        </div>
+    );
 }
