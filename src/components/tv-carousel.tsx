@@ -58,47 +58,35 @@ export function TvCarousel({ initialPhotos, wedding }: { initialPhotos: Photo[],
                         opts={{ loop: true }}
                         className="w-full h-full"
                     >
-                        <CarouselContent className="-ml-1 h-full">
-                            {photos.map((photo, index) => (
-                                <CarouselItem key={photo.id} className="pl-1 h-full">
-                                    <div className="p-1 h-full">
-                                        <Card className="h-full bg-black border-none rounded-none">
-                                            <CardContent className="relative flex h-full items-center justify-center p-0">
-                                                <AnimatePresence>
-                                                    <motion.div
-                                                        initial={{ opacity: 0 }}
-                                                        animate={{ opacity: 1 }}
-                                                        exit={{ opacity: 0 }}
-                                                        transition={{ duration: 1.5 }}
-                                                        className="h-full w-full relative"
-                                                    >
-                                                        {photo.mediaType === 'video' ? (
-                                                            <video
-                                                                src={photo.imageUrl}
-                                                                className="object-contain w-full h-full"
-                                                                autoPlay
-                                                                loop
-                                                                muted
-                                                                playsInline
-                                                            />
-                                                        ) : (
-                                                            <Image
-                                                                src={photo.imageUrl}
-                                                                alt={photo.caption || `Foto por ${photo.author}`}
-                                                                fill
-                                                                className={cn('object-contain', photo.filter)}
-                                                                sizes="100vw"
-                                                            />
-                                                        )}
-                                                        <div className="absolute bottom-0 left-0 right-0 z-10 text-white bg-gradient-to-t from-black/80 to-transparent p-8 pt-20 text-center">
-                                                            <p className="text-2xl font-bold">{photo.author}</p>
-                                                            {photo.caption && <p className="text-xl mt-1">{photo.caption}</p>}
-                                                        </div>
-                                                    </motion.div>
-                                                </AnimatePresence>
-                                            </CardContent>
-                                        </Card>
-                                    </div>
+                        <CarouselContent className="h-full">
+                            {photos.map((photo) => (
+                                <CarouselItem key={photo.id} className="h-full">
+                                    <Card className="h-full bg-black border-none rounded-none">
+                                        <CardContent className="relative flex h-full items-center justify-center p-0">
+                                            {photo.mediaType === 'video' ? (
+                                                <video
+                                                    src={photo.imageUrl}
+                                                    className="object-contain w-full h-full"
+                                                    autoPlay
+                                                    loop
+                                                    muted
+                                                    playsInline
+                                                />
+                                            ) : (
+                                                <Image
+                                                    src={photo.imageUrl}
+                                                    alt={photo.caption || `Foto por ${photo.author}`}
+                                                    fill
+                                                    className={cn('object-contain', photo.filter)}
+                                                    sizes="100vw"
+                                                />
+                                            )}
+                                            <div className="absolute bottom-0 left-0 right-0 z-10 text-white bg-gradient-to-t from-black/80 to-transparent p-8 pt-20 text-center">
+                                                <p className="text-2xl font-bold">{photo.author}</p>
+                                                {photo.caption && <p className="text-xl mt-1">{photo.caption}</p>}
+                                            </div>
+                                        </CardContent>
+                                    </Card>
                                 </CarouselItem>
                             ))}
                         </CarouselContent>
