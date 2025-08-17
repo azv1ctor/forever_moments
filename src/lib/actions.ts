@@ -7,7 +7,7 @@ import { db } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Photo, Comment, Wedding, WeddingStatus, WeddingPlan, PlanDetails, MediaType, AnalyticsData } from './types';
 import { suggestPhotoCaption } from '@/ai/flows/suggest-photo-caption';
-import { plans } from '@/lib/plans';
+import { getPlans, Plan } from '@/lib/plans';
 import fs from 'fs/promises';
 import path from 'path';
 import { format, subDays } from 'date-fns';
@@ -16,6 +16,8 @@ const PHOTOS_COLLECTION = 'photos';
 const WEDDINGS_COLLECTION = 'weddings';
 
 const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
+const PLANS_CONFIG_PATH = path.join(process.cwd(), 'public', 'plans.json');
+
 
 // Helper function to handle file saving
 async function saveFile(file: File, subfolder: string): Promise<string> {
@@ -265,7 +267,8 @@ export async function createWedding(formData: FormData) {
         if (logo && logo.size > 0) {
             logoUrl = await saveFile(logo, 'logos');
         }
-
+        
+        const plans = await getPlans();
         const planDetails: PlanDetails = plans[weddingData.plan].features;
 
         const newWeddingData = {
@@ -310,7 +313,7 @@ export async function updateWedding(id: string, formData: FormData) {
         }
         const { logo, ...weddingData } = validated.data;
         
-        const updateData = { ...weddingData };
+        const updateData: Partial<Wedding> & { planDetails?: PlanDetails } = { ...weddingData };
         
         if (logo && logo.size > 0) {
             const currentWedding = await getWedding(id);
@@ -322,12 +325,13 @@ export async function updateWedding(id: string, formData: FormData) {
                     console.warn("Could not delete old logo", e);
                 }
             }
-            (updateData as any).logoUrl = await saveFile(logo, 'logos');
+            updateData.logoUrl = await saveFile(logo, 'logos');
         }
 
         if (updateData.plan) {
+            const plans = await getPlans();
             const planKey = updateData.plan as WeddingPlan;
-            (updateData as any).planDetails = plans[planKey].features;
+            updateData.planDetails = plans[planKey].features;
         }
 
         await db.collection(WEDDINGS_COLLECTION).doc(id).update(updateData);
@@ -433,5 +437,21 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     } catch (error) {
         console.error("Error fetching analytics data:", error);
         throw new Error("Could not retrieve analytics data.");
+    }
+}
+
+// --- Plan Actions ---
+
+export async function savePlansConfig(plans: Record<WeddingPlan, Plan>) {
+    try {
+        await fs.writeFile(PLANS_CONFIG_PATH, JSON.stringify(plans, null, 2), 'utf-8');
+        // Revalidate paths where plan details are used, if necessary
+        revalidatePath('/admin/plans');
+        revalidatePath('/admin/weddings');
+        return { success: true, message: 'Planos salvos com sucesso.' };
+    } catch (error) {
+        console.error('[SAVE_PLANS_ERROR]', error);
+        const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido';
+        return { success: false, message: `Falha ao salvar os planos: ${errorMessage}` };
     }
 }

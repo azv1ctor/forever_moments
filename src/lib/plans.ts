@@ -1,6 +1,8 @@
-
 // src/lib/plans.ts
+'use server';
 import type { WeddingPlan, PlanDetails } from './types';
+import fs from 'fs/promises';
+import path from 'path';
 
 export interface Plan {
     name: WeddingPlan;
@@ -13,7 +15,7 @@ export interface Plan {
     support: string;
 }
 
-export const plans: Record<WeddingPlan, Plan> = {
+const defaultPlans: Record<WeddingPlan, Plan> = {
     'Básico': {
         name: 'Básico',
         description: 'O essencial para registrar e compartilhar os momentos do seu evento.',
@@ -54,3 +56,29 @@ export const plans: Record<WeddingPlan, Plan> = {
         support: 'Suporte completo com equipe no local.'
     }
 };
+
+const PLANS_CONFIG_PATH = path.join(process.cwd(), 'public', 'plans.json');
+
+let cachedPlans: Record<WeddingPlan, Plan> | null = null;
+
+export async function getPlans(): Promise<Record<WeddingPlan, Plan>> {
+    if (cachedPlans) {
+        return cachedPlans;
+    }
+    try {
+        await fs.access(PLANS_CONFIG_PATH);
+        const fileContent = await fs.readFile(PLANS_CONFIG_PATH, 'utf-8');
+        cachedPlans = JSON.parse(fileContent);
+        return cachedPlans!;
+    } catch (error) {
+        // Se o arquivo não existe ou há erro na leitura/parse, usa o padrão e o cria
+        console.log("Arquivo de planos não encontrado ou inválido, usando e criando o padrão.");
+        try {
+            await fs.writeFile(PLANS_CONFIG_PATH, JSON.stringify(defaultPlans, null, 2), 'utf-8');
+        } catch (writeError) {
+            console.error("Erro ao tentar criar o arquivo de planos padrão:", writeError);
+        }
+        cachedPlans = defaultPlans;
+        return cachedPlans;
+    }
+}

@@ -21,12 +21,13 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { plans as planConfig } from '@/lib/plans';
+import { getPlans as getPlanConfig, type Plan } from '@/lib/plans';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function WeddingsPage() {
   const { toast } = useToast();
   const [weddings, setWeddings] = useState<Wedding[]>([]);
+  const [planConfig, setPlanConfig] = useState<Record<WeddingPlan, Plan> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -36,31 +37,45 @@ export default function WeddingsPage() {
   const [coupleNames, setCoupleNames] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [plan, setPlan] = useState<WeddingPlan>('Básico');
-  const [price, setPrice] = useState<number>(planConfig['Básico'].price.min);
+  const [price, setPrice] = useState<number>(0);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchWeddings = async () => {
+    const fetchInitialData = async () => {
       setIsLoading(true);
-      const fetchedWeddings = await getWeddings();
-      setWeddings(fetchedWeddings);
-      setIsLoading(false);
+      try {
+        const [fetchedWeddings, fetchedPlanConfig] = await Promise.all([
+            getWeddings(),
+            getPlanConfig()
+        ]);
+        setWeddings(fetchedWeddings);
+        setPlanConfig(fetchedPlanConfig);
+        if (fetchedPlanConfig) {
+            setPrice(fetchedPlanConfig['Básico'].price.min);
+        }
+      } catch (error) {
+          toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível carregar os dados iniciais.' });
+      } finally {
+        setIsLoading(false);
+      }
     };
-    fetchWeddings();
-  }, []);
+    fetchInitialData();
+  }, [toast]);
 
   useEffect(() => {
-      if (plan) {
+      if (plan && planConfig) {
           setPrice(planConfig[plan].price.min);
       }
-  }, [plan]);
+  }, [plan, planConfig]);
 
   const resetForm = () => {
     setCoupleNames('');
     setEventDate('');
     setPlan('Básico');
-    setPrice(planConfig['Básico'].price.min);
+    if (planConfig) {
+        setPrice(planConfig['Básico'].price.min);
+    }
     setEditingWedding(null);
     setLogoFile(null);
     setLogoPreview(null);
@@ -158,6 +173,37 @@ export default function WeddingsPage() {
     setIsSubmitting(false);
   };
 
+  if (isLoading || !planConfig) {
+      return (
+         <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <Skeleton className="h-8 w-64" />
+                  <Skeleton className="h-4 w-80 mt-2" />
+                </div>
+                <Skeleton className="h-10 w-48" />
+              </div>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-2">
+                    {[...Array(3)].map((_, i) => (
+                        <div key={i} className="flex items-center space-x-4 p-2">
+                            <Skeleton className="h-10 w-10 rounded-full" />
+                            <div className="space-y-2 flex-1">
+                                <Skeleton className="h-4 w-1/3" />
+                            </div>
+                            <Skeleton className="h-4 w-1/4 hidden sm:block" />
+                            <Skeleton className="h-6 w-16 hidden md:block" />
+                            <Skeleton className="h-8 w-20" />
+                        </div>
+                    ))}
+                </div>
+            </CardContent>
+        </Card>
+      )
+  }
+
   return (
     <>
       <Card>
@@ -174,21 +220,6 @@ export default function WeddingsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="space-y-2">
-                {[...Array(3)].map((_, i) => (
-                    <div key={i} className="flex items-center space-x-4 p-2">
-                        <Skeleton className="h-10 w-10 rounded-full" />
-                        <div className="space-y-2 flex-1">
-                            <Skeleton className="h-4 w-1/3" />
-                        </div>
-                         <Skeleton className="h-4 w-1/4 hidden sm:block" />
-                         <Skeleton className="h-6 w-16 hidden md:block" />
-                         <Skeleton className="h-8 w-20" />
-                    </div>
-                ))}
-            </div>
-          ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -284,7 +315,6 @@ export default function WeddingsPage() {
                 )}
               </TableBody>
             </Table>
-          )}
         </CardContent>
       </Card>
 
