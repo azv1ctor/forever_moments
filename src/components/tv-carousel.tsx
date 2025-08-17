@@ -16,14 +16,17 @@ export function TvCarousel({ initialPhotos, wedding }: { initialPhotos: Photo[],
         const intervalId = setInterval(async () => {
             try {
                 const newPhotos = await getPhotos(wedding.id);
-                setPhotos(newPhotos);
+                // Apenas atualiza o estado se houver mudança no número de fotos para evitar re-renderizações desnecessárias
+                if (newPhotos.length !== photos.length) {
+                    setPhotos(newPhotos);
+                }
             } catch (error) {
                 console.error("Failed to fetch new photos for TV mode:", error);
             }
         }, 15000); // Fetch every 15 seconds
 
         return () => clearInterval(intervalId);
-    }, [wedding.id]);
+    }, [wedding.id, photos.length]);
 
     return (
         <div className="h-full w-full relative flex flex-col">
@@ -62,7 +65,7 @@ export function TvCarousel({ initialPhotos, wedding }: { initialPhotos: Photo[],
                                             animate={{ opacity: 1 }}
                                             exit={{ opacity: 0 }}
                                             transition={{ duration: 1.5 }}
-                                            className="h-full w-full"
+                                            className="h-full w-full relative"
                                         >
                                             <Image
                                                 src={photo.imageUrl}
