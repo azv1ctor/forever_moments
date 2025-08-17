@@ -7,7 +7,7 @@ import { db } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Photo, Comment, Wedding, WeddingStatus, WeddingPlan, PlanDetails, MediaType, AnalyticsData } from './types';
 import { suggestPhotoCaption } from '@/ai/flows/suggest-photo-caption';
-import { getPlans, Plan, clearPlansCache } from '@/lib/plans';
+import { Plan, clearPlansCache, defaultPlans } from '@/lib/plans';
 import fs from 'fs/promises';
 import path from 'path';
 import { format, subDays } from 'date-fns';
@@ -441,6 +441,30 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
 }
 
 // --- Plan Actions ---
+
+let cachedPlans: Record<WeddingPlan, Plan> | null = null;
+
+export async function getPlans(): Promise<Record<WeddingPlan, Plan>> {
+    if (cachedPlans) {
+        return cachedPlans;
+    }
+    try {
+        await fs.access(PLANS_CONFIG_PATH);
+        const fileContent = await fs.readFile(PLANS_CONFIG_PATH, 'utf-8');
+        cachedPlans = JSON.parse(fileContent);
+        return cachedPlans!;
+    } catch (error) {
+        // Se o arquivo não existe ou há erro na leitura/parse, usa o padrão e o cria
+        console.log("Arquivo de planos não encontrado ou inválido, usando e criando o padrão.");
+        try {
+            await fs.writeFile(PLANS_CONFIG_PATH, JSON.stringify(defaultPlans, null, 2), 'utf-8');
+        } catch (writeError) {
+            console.error("Erro ao tentar criar o arquivo de planos padrão:", writeError);
+        }
+        cachedPlans = defaultPlans;
+        return cachedPlans;
+    }
+}
 
 export async function savePlansConfig(plans: Record<WeddingPlan, Plan>) {
     try {

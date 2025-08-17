@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, SlidersHorizontal, Tv, Download, Film, Clock, Save, Loader2 } from 'lucide-react';
-import { savePlansConfig } from '@/lib/actions';
-import { getPlans, type Plan, type WeddingPlan } from '@/lib/plans';
+import { getPlans, savePlansConfig } from '@/lib/actions';
+import { type Plan, type WeddingPlan } from '@/lib/plans';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function PlansPage() {

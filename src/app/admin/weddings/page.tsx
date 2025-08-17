@@ -3,7 +3,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getWeddings, createWedding, updateWedding, deleteWedding } from '@/lib/actions';
+import { getWeddings, createWedding, updateWedding, deleteWedding, getPlans } from '@/lib/actions';
 import type { Wedding, WeddingPlan, WeddingStatus } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +21,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { getPlans as getPlanConfig, type Plan } from '@/lib/plans';
+import { type Plan } from '@/lib/plans';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function WeddingsPage() {
@@ -47,7 +47,7 @@ export default function WeddingsPage() {
       try {
         const [fetchedWeddings, fetchedPlanConfig] = await Promise.all([
             getWeddings(),
-            getPlanConfig()
+            getPlans()
         ]);
         setWeddings(fetchedWeddings);
         setPlanConfig(fetchedPlanConfig);
