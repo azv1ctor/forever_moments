@@ -115,6 +115,16 @@ export async function createPhoto(formData: FormData) {
         if (!weddingId || typeof weddingId !== 'string') {
             return { success: false, message: 'ID do casamento é inválido.' };
         }
+
+        const wedding = await getWedding(weddingId);
+        if (!wedding) {
+            return { success: false, message: 'Casamento não encontrado.' };
+        }
+
+        const isVideo = file.type.startsWith('video/');
+        if (isVideo && !wedding.planDetails.allowGifs) {
+            return { success: false, message: 'Seu plano não permite o envio de vídeos.' };
+        }
         
         if (!author || typeof author !== 'string') {
             return { success: false, message: 'Autor não identificado.' };
@@ -122,7 +132,7 @@ export async function createPhoto(formData: FormData) {
         
         const publicUrl = await saveFile(file, weddingId);
         
-        const mediaType: MediaType = file.type.startsWith('video/') ? 'video' : 'image';
+        const mediaType: MediaType = isVideo ? 'video' : 'image';
 
         const newPhotoData: Omit<Photo, 'id'> = {
             weddingId,
