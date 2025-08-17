@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { BarChart3, Settings, ShieldAlert, Users, LogOut, PanelLeft, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -113,7 +113,10 @@ export default function AdminLayout({
                         <span className="sr-only">Toggle Menu</span>
                       </Button>
                     </SheetTrigger>
-                    <SheetContent side="left" className="sm:max-w-xs flex flex-col">
+                    <SheetContent side="left" className="sm:max-w-xs flex flex-col p-0">
+                      <SheetHeader className="p-6 pb-0">
+                        <SheetTitle className="sr-only">Menu de Navegação</SheetTitle>
+                      </SheetHeader>
                        <div className="flex h-16 items-center border-b px-6">
                          <Link href="/admin/dashboard">
                             <Logo />
