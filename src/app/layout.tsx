@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'Instante',
+  title: 'ParaSempre',
   description: 'Compartilhe e reviva os momentos do seu evento.',
 };
 
