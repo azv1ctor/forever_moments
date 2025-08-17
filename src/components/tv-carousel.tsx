@@ -56,7 +56,7 @@ export function TvCarousel({ initialPhotos, wedding }: { initialPhotos: Photo[],
                         opts={{ loop: true }}
                         className="w-full h-full"
                     >
-                        <CarouselContent>
+                        <CarouselContent className="h-full">
                             {photos.map((photo, index) => (
                                 <CarouselItem key={photo.id} className="relative h-full w-full">
                                     <AnimatePresence>
@@ -67,13 +67,23 @@ export function TvCarousel({ initialPhotos, wedding }: { initialPhotos: Photo[],
                                             transition={{ duration: 1.5 }}
                                             className="h-full w-full relative"
                                         >
-                                            <Image
-                                                src={photo.imageUrl}
-                                                alt={photo.caption || `Foto por ${photo.author}`}
-                                                fill
-                                                className="object-contain"
-                                                priority={index === 0}
-                                            />
+                                           {photo.mediaType === 'video' ? (
+                                                <video
+                                                    src={photo.imageUrl}
+                                                    className="object-contain w-full h-full"
+                                                    autoPlay
+                                                    loop
+                                                    muted
+                                                    playsInline
+                                                />
+                                            ) : (
+                                                <Image
+                                                    src={photo.imageUrl}
+                                                    alt={photo.caption || `Foto por ${photo.author}`}
+                                                    fill
+                                                    className="object-contain"
+                                                />
+                                            )}
                                             <div className="absolute bottom-0 left-0 right-0 z-10 text-white bg-gradient-to-t from-black/80 to-transparent p-8 pt-20 text-center">
                                                 <p className="text-2xl font-bold">{photo.author}</p>
                                                 {photo.caption && <p className="text-xl mt-1">{photo.caption}</p>}
