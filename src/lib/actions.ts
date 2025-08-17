@@ -7,7 +7,7 @@ import { db } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Photo, Comment, Wedding, WeddingStatus, WeddingPlan, PlanDetails, MediaType, AnalyticsData } from './types';
 import { suggestPhotoCaption } from '@/ai/flows/suggest-photo-caption';
-import { Plan, clearPlansCache, defaultPlans } from '@/lib/plans';
+import { clearPlansCache, defaultPlans, type Plan } from '@/lib/plans';
 import fs from 'fs/promises';
 import path from 'path';
 import { format, subDays } from 'date-fns';
@@ -123,8 +123,12 @@ export async function createPhoto(formData: FormData) {
             return { success: false, message: 'Casamento não encontrado.' };
         }
 
+        // Fetch the LATEST plan configuration to validate against
+        const currentPlans = await getPlans();
+        const currentPlanDetails = currentPlans[wedding.plan].features;
+
         const isVideo = file.type.startsWith('video/');
-        if (isVideo && !wedding.planDetails.allowGifs) {
+        if (isVideo && !currentPlanDetails.allowGifs) {
             return { success: false, message: 'Seu plano não permite o envio de vídeos.' };
         }
         
@@ -445,6 +449,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
 let cachedPlans: Record<WeddingPlan, Plan> | null = null;
 
 export async function getPlans(): Promise<Record<WeddingPlan, Plan>> {
+    // This check is now safe because we clear the cache on save
     if (cachedPlans) {
         return cachedPlans;
     }
@@ -454,12 +459,12 @@ export async function getPlans(): Promise<Record<WeddingPlan, Plan>> {
         cachedPlans = JSON.parse(fileContent);
         return cachedPlans!;
     } catch (error) {
-        // Se o arquivo não existe ou há erro na leitura/parse, usa o padrão e o cria
-        console.log("Arquivo de planos não encontrado ou inválido, usando e criando o padrão.");
+        // If the file doesn't exist or there's an error, use defaults and create it
+        console.log("Plans config file not found or invalid, using/creating default.");
         try {
             await fs.writeFile(PLANS_CONFIG_PATH, JSON.stringify(defaultPlans, null, 2), 'utf-8');
         } catch (writeError) {
-            console.error("Erro ao tentar criar o arquivo de planos padrão:", writeError);
+            console.error("Error trying to create default plans file:", writeError);
         }
         cachedPlans = defaultPlans;
         return cachedPlans;
