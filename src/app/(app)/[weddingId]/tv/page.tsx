@@ -7,11 +7,9 @@ import { TvCarousel } from '@/components/tv-carousel';
 export const dynamic = 'force-dynamic';
 
 export default async function TVPage({ params }: { params: { weddingId: string } }) {
-  const { weddingId } = params;
-  
   const [wedding, initialPhotos] = await Promise.all([
-    getWedding(weddingId),
-    getPhotos(weddingId)
+    getWedding(params.weddingId),
+    getPhotos(params.weddingId)
   ]);
 
   if (!wedding) {

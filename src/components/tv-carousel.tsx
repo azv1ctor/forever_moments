@@ -57,7 +57,7 @@ export function TvCarousel({ initialPhotos, wedding }: { initialPhotos: Photo[],
                         className="w-full h-full"
                     >
                         <CarouselContent className="h-full">
-                            {photos.map((photo, index) => (
+                            {photos.map((photo) => (
                                 <CarouselItem key={photo.id} className="relative h-full w-full">
                                     <AnimatePresence>
                                         <motion.div
