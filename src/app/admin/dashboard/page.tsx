@@ -58,26 +58,24 @@ export default function AdminDashboardPage() {
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex justify-between items-center">
-            <div>
-                <CardTitle>Gerenciador de Fotos</CardTitle>
-                <CardDescription>Visualize e apague fotos enviadas pelos convidados.</CardDescription>
-            </div>
-            <Select value={selectedWeddingId} onValueChange={setSelectedWeddingId}>
-                <SelectTrigger className="w-[280px]">
-                    <SelectValue placeholder="Filtrar por casamento..." />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">Todos os Casamentos</SelectItem>
-                    {weddings.map(wedding => (
-                        <SelectItem key={wedding.id} value={wedding.id}>
-                            {wedding.coupleNames}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
+      <CardHeader className="flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+            <CardTitle>Moderação de Conteúdo</CardTitle>
+            <CardDescription>Visualize e apague fotos enviadas pelos convidados.</CardDescription>
         </div>
+        <Select value={selectedWeddingId} onValueChange={setSelectedWeddingId}>
+            <SelectTrigger className="w-full md:w-[280px]">
+                <SelectValue placeholder="Filtrar por casamento..." />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">Todos os Casamentos</SelectItem>
+                {weddings.map(wedding => (
+                    <SelectItem key={wedding.id} value={wedding.id}>
+                        {wedding.coupleNames}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -98,8 +96,7 @@ export default function AdminDashboardPage() {
           <TableHeader>
             <TableRow>
               <TableHead className="hidden w-[100px] sm:table-cell">Imagem</TableHead>
-              <TableHead>Autor</TableHead>
-              <TableHead>Legenda</TableHead>
+              <TableHead>Detalhes</TableHead>
               <TableHead className="hidden md:table-cell">Data</TableHead>
               <TableHead><span className="sr-only">Ações</span></TableHead>
             </TableRow>
@@ -116,8 +113,10 @@ export default function AdminDashboardPage() {
                     width="64"
                   />
                 </TableCell>
-                <TableCell className="font-medium">{photo.author}</TableCell>
-                <TableCell className="max-w-[200px] truncate">{photo.caption || '-'}</TableCell>
+                <TableCell>
+                  <div className="font-medium">{photo.author}</div>
+                  <div className="text-sm text-muted-foreground max-w-[200px] truncate">{photo.caption || '-'}</div>
+                </TableCell>
                 <TableCell className="hidden md:table-cell">
                   {photo.createdAt ? format(new Date(photo.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : '-'}
                 </TableCell>
