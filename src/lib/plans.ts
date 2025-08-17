@@ -61,6 +61,10 @@ const PLANS_CONFIG_PATH = path.join(process.cwd(), 'public', 'plans.json');
 
 let cachedPlans: Record<WeddingPlan, Plan> | null = null;
 
+export function clearPlansCache() {
+    cachedPlans = null;
+}
+
 export async function getPlans(): Promise<Record<WeddingPlan, Plan>> {
     if (cachedPlans) {
         return cachedPlans;

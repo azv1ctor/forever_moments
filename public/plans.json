@@ -40,7 +40,7 @@
     },
     "features": {
       "allowFilters": true,
-      "allowGifs": true,
+      "allowGifs": false,
       "tvCarousel": true,
       "allowDownload": true,
       "accessDurationDays": 0

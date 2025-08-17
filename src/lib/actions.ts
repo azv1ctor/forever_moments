@@ -7,7 +7,7 @@ import { db } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Photo, Comment, Wedding, WeddingStatus, WeddingPlan, PlanDetails, MediaType, AnalyticsData } from './types';
 import { suggestPhotoCaption } from '@/ai/flows/suggest-photo-caption';
-import { getPlans, Plan } from '@/lib/plans';
+import { getPlans, Plan, clearPlansCache } from '@/lib/plans';
 import fs from 'fs/promises';
 import path from 'path';
 import { format, subDays } from 'date-fns';
@@ -445,7 +445,9 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
 export async function savePlansConfig(plans: Record<WeddingPlan, Plan>) {
     try {
         await fs.writeFile(PLANS_CONFIG_PATH, JSON.stringify(plans, null, 2), 'utf-8');
-        // Revalidate paths where plan details are used, if necessary
+        // Clear cache to force a re-read from the file
+        clearPlansCache();
+        // Revalidate paths where plan details are used
         revalidatePath('/admin/plans');
         revalidatePath('/admin/weddings');
         return { success: true, message: 'Planos salvos com sucesso.' };
