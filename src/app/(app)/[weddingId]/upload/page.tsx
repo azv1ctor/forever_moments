@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
@@ -218,7 +219,11 @@ export default function UploadPage() {
       <Card>
         <CardHeader>
           <CardTitle className="font-headline text-3xl">Compartilhe um Momento</CardTitle>
-          <CardDescription>Envie uma foto ou vídeo do casamento para todos verem.</CardDescription>
+          <CardDescription>
+            {wedding?.planDetails.allowGifs
+              ? 'Envie uma foto ou vídeo do casamento para todos verem.'
+              : 'Envie uma foto do casamento para todos verem.'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -228,7 +233,9 @@ export default function UploadPage() {
                 name="file"
                 render={({ field }) => ( 
                   <FormItem>
-                    <FormLabel>{wedding?.planDetails.allowGifs ? 'Foto ou Vídeo' : 'Foto'}</FormLabel>
+                    <FormLabel>
+                      {wedding?.planDetails.allowGifs ? 'Foto ou Vídeo' : 'Foto'}
+                    </FormLabel>
                       <div className="relative flex justify-center items-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted">
                           {preview ? (
                               isVideo ? (
@@ -334,5 +341,3 @@ export default function UploadPage() {
     </div>
   );
 }
-
-    
