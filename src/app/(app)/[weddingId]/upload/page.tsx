@@ -11,9 +11,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import Image from 'next/image';
-import { createPhoto, getWedding, suggestCaptionAction } from '@/lib/actions';
+import { createPhoto, getWedding } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, Upload, Camera, SlidersHorizontal, Loader2 } from 'lucide-react';
+import { Upload, Camera, SlidersHorizontal, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import type { Wedding } from '@/lib/types';
@@ -61,7 +61,6 @@ export default function UploadPage() {
   const weddingId = params.weddingId as string;
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
-  const [isSuggesting, startSuggestionTransition] = useTransition();
   const [preview, setPreview] = useState<string | null>(null);
   const [isVideo, setIsVideo] = useState(false);
   const [guestName, setGuestName] = useState<string>('');
@@ -141,30 +140,6 @@ export default function UploadPage() {
     } finally {
       setIsProcessing(false);
     }
-  };
-  
-  const handleSuggestCaption = async () => {
-    if (!preview || isVideo) {
-      toast({ variant: 'destructive', title: 'Por favor, selecione uma imagem primeiro.' });
-      return;
-    }
-    startSuggestionTransition(async () => {
-        const file = form.getValues('file');
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onloadend = async () => {
-            const base64data = reader.result as string;
-            const formData = new FormData();
-            formData.append('photoDataUri', base64data);
-            const result = await suggestCaptionAction(formData);
-            if (result.success && result.caption) {
-                form.setValue('caption', result.caption);
-                toast({ title: 'Sugestão de legenda aplicada!' });
-            } else {
-                toast({ variant: 'destructive', title: 'Falha na Sugestão', description: result.message });
-            }
-        };
-    });
   };
   
   const onSubmit = (values: z.infer<typeof uploadSchema>) => {
@@ -308,20 +283,7 @@ export default function UploadPage() {
                 name="caption"
                 render={({ field }) => (
                   <FormItem>
-                    <div className="flex justify-between items-center">
-                      <FormLabel>Legenda (Opcional)</FormLabel>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleSuggestCaption}
-                        disabled={!preview || isVideo || isSuggesting || isProcessing}
-                        className="text-accent-foreground"
-                      >
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        {isSuggesting ? 'Pensando...' : 'Sugerir com IA'}
-                      </Button>
-                    </div>
+                    <FormLabel>Legenda (Opcional)</FormLabel>
                     <FormControl>
                       <Textarea placeholder="Adicione uma legenda divertida à sua mídia..." {...field} />
                     </FormControl>

@@ -1,3 +1,4 @@
+
 // /src/lib/actions.ts
 'use server';
 
@@ -6,7 +7,6 @@ import { z } from 'zod';
 import { db } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Photo, Comment, Wedding, WeddingStatus, WeddingPlan, PlanDetails, MediaType, AnalyticsData } from './types';
-import { suggestPhotoCaption } from '@/ai/flows/suggest-photo-caption';
 import { clearPlansCache, defaultPlans, type Plan } from '@/lib/plans';
 import fs from 'fs/promises';
 import path from 'path';
@@ -194,28 +194,6 @@ export async function deletePhoto(photoId: string, weddingId: string, imageUrl: 
   } catch(error) {
     console.error("Erro ao excluir foto:", error);
     return { success: false, message: `Falha ao excluir a foto. Detalhes: ${error instanceof Error ? error.message : 'Erro desconhecido'}` };
-  }
-}
-
-const SuggestCaptionSchema = z.object({
-  photoDataUri: z.string(),
-});
-export async function suggestCaptionAction(formData: FormData) {
-  try {
-    const { photoDataUri } = SuggestCaptionSchema.parse({
-      photoDataUri: formData.get('photoDataUri'),
-    });
-
-    const result = await suggestPhotoCaption({
-      photoDataUri,
-      topicKeywords: 'casamento, celebração, alegria, amor, matrimônio, festa',
-    });
-
-    return { success: true, caption: result.suggestedCaption };
-  } catch (error) {
-    console.error('[SUGGEST_CAPTION_ERROR]', error);
-    const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido';
-    return { success: false, message: `Não foi possível sugerir uma legenda: ${errorMessage}` };
   }
 }
 

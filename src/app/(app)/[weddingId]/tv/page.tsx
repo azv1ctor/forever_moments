@@ -1,19 +1,25 @@
 // src/app/(app)/[weddingId]/tv/page.tsx
+
 import { getPhotos, getWedding } from '@/lib/actions';
 import { notFound } from 'next/navigation';
 import { TvCarousel } from '@/components/tv-carousel';
 
 export const dynamic = 'force-dynamic';
 
-export default async function TVPage({ params }: { params: { weddingId: string } }) {
-  // Busca os dados do casamento e as fotos iniciais em paralelo
+// Em Next 15, `params` pode ser assíncrono. Aguarde-o antes de usar.
+export default async function TVPage({
+  params,
+}: {
+  params: Promise<{ weddingId: string }>;
+}) {
+  const { weddingId } = await params;
+
   const [wedding, initialPhotos] = await Promise.all([
-    getWedding(params.weddingId),
-    getPhotos(params.weddingId)
+    getWedding(weddingId),
+    getPhotos(weddingId),
   ]);
 
-  // Se o casamento não for encontrado, exibe a página 404
-  if (!wedding) {
+  if (!wedding || !wedding.planDetails?.tvCarousel) {
     notFound();
   }
 
