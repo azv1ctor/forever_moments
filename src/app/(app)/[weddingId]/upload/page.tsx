@@ -228,7 +228,7 @@ export default function UploadPage() {
                 name="file"
                 render={({ field }) => ( 
                   <FormItem>
-                    <FormLabel>Foto ou Vídeo</FormLabel>
+                    <FormLabel>{wedding?.planDetails.allowGifs ? 'Foto ou Vídeo' : 'Foto'}</FormLabel>
                       <div className="relative flex justify-center items-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted">
                           {preview ? (
                               isVideo ? (
@@ -334,3 +334,5 @@ export default function UploadPage() {
     </div>
   );
 }
+
+    
