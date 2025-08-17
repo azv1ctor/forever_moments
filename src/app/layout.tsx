@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'Celebre o Amor',
-  description: 'Compartilhe seus momentos do nosso dia especial.',
+  title: 'Instante',
+  description: 'Compartilhe e reviva os momentos do seu evento.',
 };
 
 export default function RootLayout({
